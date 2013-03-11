@@ -2,6 +2,7 @@ package jp.co.flect.salesforce;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.net.URL;
 import java.net.MalformedURLException;
 import java.util.Arrays;
@@ -884,5 +885,10 @@ public class SalesforceClient extends SoapClient {
 		String endpoint = getWSDL().getEndpoint();
 		int idx = endpoint.lastIndexOf('/');
 		return endpoint.substring(idx+1);
+	}
+	
+	private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+		in.defaultReadObject();
+		meta.setWSDL(getWSDL());
 	}
 }
