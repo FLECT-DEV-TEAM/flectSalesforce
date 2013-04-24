@@ -324,6 +324,7 @@ public class BulkClient {
 	
 	private void error(HttpResponse res) throws BulkApiException, IOException {
 		String content = HttpUtils.getContent(res);
+System.out.println("error - " + res.getStatusLine().getStatusCode() + "\n" + content);
 		try {
 			Document doc = XMLUtils.parse(new StringReader(content));
 			Element root = doc.getDocumentElement();

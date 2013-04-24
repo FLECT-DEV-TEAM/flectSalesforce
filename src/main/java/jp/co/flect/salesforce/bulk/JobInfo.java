@@ -69,12 +69,23 @@ public class JobInfo extends AbstractBulkInfo {
 	};
 	
 	public enum Operation {
-		insert,
-		update,
-		upsert,
-		delete,
-		hardDelete,
-		query
+		Insert,
+		Update,
+		Upsert,
+		Delete,
+		HardDelete,
+		Query
+		;
+		
+		public String toString() {
+			String s= super.toString();
+			return s.substring(0, 1).toLowerCase() + s.substring(1);
+		}
+		
+		public static Operation fromValue(String value) {
+			value = value.substring(0, 1).toUpperCase() + value.substring(1);
+			return Operation.valueOf(value);
+		}
 	};
 	
 	public enum ContentType {
@@ -126,10 +137,16 @@ public class JobInfo extends AbstractBulkInfo {
 		put("contentType", contentType);
 	}
 	
+	//For BatchInfo
+	public JobInfo(String jobId) {
+		super("jobInfo", ELEMENT_SEQ);
+		put("id", jobId);
+	}
+	
 	@Override
 	protected Object parseValue(String name, String value) {
 		if ("operation".equals(name)) {
-			return Operation.valueOf(value);
+			return Operation.fromValue(value);
 		} else if ("state".equals(name)) {
 			return JobState.valueOf(value);
 		} else if ("concurrencyMode".equals(name)) {

@@ -24,6 +24,12 @@ package jp.co.flect.salesforce.bulk;
 */
 public class BatchInfo extends AbstractBulkInfo {
 	
+	public static BatchInfo createNotProcessed(String objectName) {
+		BatchInfo ret = new BatchInfo(objectName);
+		ret.put("state", BatchState.NotProcessed);
+		return ret;
+	}
+	
 	private static final String[] ELEMENT_SEQ = {
 		"id",
 		"jobId",
