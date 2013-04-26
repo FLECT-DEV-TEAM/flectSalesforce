@@ -1,6 +1,8 @@
 package jp.co.flect.salesforce.bulk;
 
-public class BulkApiException extends Exception {
+import jp.co.flect.salesforce.SalesforceException;
+
+public class BulkApiException extends SalesforceException {
 	
 	private String code;
 	

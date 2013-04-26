@@ -35,12 +35,14 @@ public class ParameterQuery {
 	};
 	
 	public enum ParameterType {
+		STRING,
 		TEXT,
 		TEXTAREA,
 		DATE,
 		DATETIME,
 		TIME,
 		CHECKBOX,
+		BOOLEAN,
 		LITERAL,
 		NUMBER,
 		UNKNOWN
@@ -67,8 +69,8 @@ public class ParameterQuery {
 		
 		int paramIndex = 0;
 		while (n != Tokenizer.T_END) {
-			if (n == Tokenizer.T_LITERAL && buf.charAt(0) == ':') {
-				Parameter p = parseParameter(buf.substring(1), paramIndex); 
+			if (n == Tokenizer.T_LITERAL && (buf.charAt(0) == ':' || (buf.length() == 1 && buf.charAt(0) == '?'))) {
+				Parameter p = parseParameter(buf.substring(1), ++paramIndex); 
 				this.map.put(p.getName(), p);
 			}
 			n = t.next(buf);
@@ -102,8 +104,8 @@ public class ParameterQuery {
 				case Tokenizer.T_LITERAL:
 				{
 					String str = buf.toString();
-					if (buf.charAt(0) == ':') {
-						Parameter p = parseParameter(buf.substring(1), paramIndex);
+					if (str.charAt(0) == ':' || str.equals("?")) {
+						Parameter p = parseParameter(buf.substring(1), ++paramIndex);
 						p = this.map.get(p.getName());
 						str = p.getValue();
 						if (p.getType() == ParameterType.TEXT || p.getType() == ParameterType.TEXTAREA) {
@@ -160,7 +162,7 @@ public class ParameterQuery {
 			}
 		} 
 		if (name.length() == 0) {
-			name = "param" + Integer.toString(++paramIndex);
+			name = "param" + Integer.toString(paramIndex);
 		}
 		return new Parameter(name, type);
 	}
@@ -228,6 +230,7 @@ public class ParameterQuery {
 		
 		public String getName() { return this.name;}
 		public ParameterType getType() { return this.type;}
+		public void setType(ParameterType type) { this.type = type;}
 		
 		public String getValue() { return this.value;}
 		public void setValue(String s) { this.value = s;}

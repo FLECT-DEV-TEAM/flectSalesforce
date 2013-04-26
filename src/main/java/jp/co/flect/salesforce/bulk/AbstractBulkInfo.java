@@ -38,11 +38,6 @@ public abstract class AbstractBulkInfo {
 		return n == null ? 0 : n.longValue();
 	}
 	
-	//package local
-	void clear() {
-		this.map.clear();
-	}
-	
 	public void parse(String str) {
 		XMLInputFactory factory = XMLInputFactory.newInstance();
 		factory.setProperty(XMLInputFactory. IS_COALESCING, Boolean.TRUE);

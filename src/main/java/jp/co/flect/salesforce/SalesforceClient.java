@@ -8,9 +8,14 @@ import java.net.MalformedURLException;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Date;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.concurrent.locks.ReentrantLock;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.text.ParseException;
 import javax.xml.namespace.QName;
 import javax.xml.stream.XMLStreamException;
 import org.w3c.dom.Document;
@@ -41,7 +46,15 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.HttpResponse;
 
+import jp.co.flect.salesforce.bulk.JobInfo;
+import jp.co.flect.salesforce.bulk.BatchInfo;
+import jp.co.flect.salesforce.bulk.BulkApiException;
 import jp.co.flect.salesforce.bulk.BulkClient;
+import jp.co.flect.salesforce.bulk.SQLSynchronizer;
+import jp.co.flect.salesforce.bulk.SQLSyncRequest;
+import jp.co.flect.salesforce.bulk.SQLSyncResult;
+import jp.co.flect.salesforce.event.SQLSynchronizerEvent;
+import jp.co.flect.salesforce.event.SQLSynchronizerListener;
 import jp.co.flect.salesforce.query.QueryResult;
 import jp.co.flect.salesforce.query.QueryRequest;
 import jp.co.flect.salesforce.query.QueryMoreRequest;
@@ -60,6 +73,14 @@ import jp.co.flect.salesforce.io.ImportRequest;
 import jp.co.flect.salesforce.io.ImportResult;
 import jp.co.flect.salesforce.io.Importer;
 import jp.co.flect.salesforce.metadata.MetadataClient;
+import jp.co.flect.salesforce.syntax.ParameterQuery;
+import jp.co.flect.salesforce.syntax.DmlResult;
+import jp.co.flect.salesforce.syntax.InsertStatement;
+import jp.co.flect.salesforce.syntax.UpsertStatement;
+import jp.co.flect.salesforce.syntax.UpdateStatement;
+import jp.co.flect.salesforce.syntax.DeleteStatement;
+import jp.co.flect.salesforce.syntax.DmlStatement;
+import jp.co.flect.xmlschema.SimpleType;
 
 
 /**
@@ -777,6 +798,98 @@ public class SalesforceClient extends SoapClient {
 	}
 	
 	/////////////////////////////////////////////////////////////////////////////
+	// execute DML 
+	/////////////////////////////////////////////////////////////////////////////
+	/** 
+	 * INSERT, UPDATE, UPSERT, DELETEのDML文を実行します。<br>
+	 * パラメータはJDBCのSQLと同様に「?」で指定します。
+	 */
+	public DmlResult executeUpdate(String dml, Object... params) throws ParseException, IOException, SoapException {
+		Map<String, Object> map = null;
+		if (params != null && params.length > 0) {
+			map = new HashMap<String, Object>();
+			for (int i=0; i<params.length; i++) {
+				map.put("param" + (i+1), params[i]);
+			}
+		}
+		return executeUpdate(dml, map);
+	}
+	
+	private DmlResult executeUpdate(String dml, Map<String, Object> params) throws ParseException, IOException, SoapException {
+		ParameterQuery pq = new ParameterQuery(dml);
+		if (pq.hasParameter() && params != null) {
+			for (ParameterQuery.Parameter p : pq.getParameterList()) {
+				Object value = params.get(p.getName());
+				if (value == null) {
+					if (params.containsKey(p.getName())) {
+						value = "";
+					} else {
+						throw new SalesforceException("Parameter not specified: " + p.getName());
+					}
+				}
+				if (value instanceof String) {
+					p.setValue(value.toString());
+				} else if (value instanceof Number) {
+					p.setType(ParameterQuery.ParameterType.NUMBER);
+					p.setValue(value.toString());
+				} else if (value instanceof Boolean) {
+					p.setType(ParameterQuery.ParameterType.BOOLEAN);
+					p.setValue(value.toString());
+				} else if (value instanceof Date) {
+					Date d = (Date)value;
+					ParameterQuery.ParameterType t = p.getType();
+					if (t != ParameterQuery.ParameterType.DATE && 
+					    t != ParameterQuery.ParameterType.DATETIME &&
+					    t != ParameterQuery.ParameterType.TIME)
+					{
+						t = ParameterQuery.ParameterType.DATETIME;
+						p.setType(t);
+					}
+					switch (t) {
+						case DATE:
+							value = SimpleType.getBuiltinType("date").format(d);
+							break;
+						case DATETIME:
+							value = SimpleType.getBuiltinType("dateTime").format(d);
+							break;
+						case TIME:
+							value = SimpleType.getBuiltinType("time").format(d);
+							break;
+					}
+					p.setValue(value.toString());
+				}
+			}
+			dml = pq.getParameterQuery();
+		}
+		DmlStatement stmt = null;
+		switch (pq.getQueryType()) {
+			case UPDATE:
+				stmt = new UpdateStatement(dml);
+				break;
+			case UPSERT:
+				stmt = new UpsertStatement(dml);
+				break;
+			case INSERT:
+				stmt = new InsertStatement(dml);
+				break;
+			case DELETE:
+				stmt = new DeleteStatement(dml);
+				break;
+			default:
+				throw new SalesforceException("Unknown statement: " + pq.getQueryType() + ", " + dml);
+		}
+		String objectName = stmt.getObjectName();
+		SObjectDef objectDef = this.meta.getObjectDef(objectName);
+		if (objectDef == null || !objectDef.isComplete()) {
+			objectDef = describeSObject(objectName);
+		}
+		if (objectDef == null) {
+			throw new SalesforceException("Unknown object: " + objectName);
+		}
+		return stmt.execute(this);
+	}
+	
+	/////////////////////////////////////////////////////////////////////////////
 	// Bulk API
 	/////////////////////////////////////////////////////////////////////////////
 	
@@ -790,6 +903,36 @@ public class SalesforceClient extends SoapClient {
 		} catch (MalformedURLException e) {
 			throw new IllegalStateException(e);
 		}
+	}
+	
+	public SQLSyncResult syncSQL(SQLSyncRequest request) throws IOException, SQLException, SoapException {
+		String objectName = request.getObjectName();
+		SObjectDef objectDef = this.meta.getObjectDef(objectName);
+		if (objectDef == null || !objectDef.isComplete()) {
+			objectDef = describeSObject(objectName);
+		}
+		if (objectDef == null) {
+			throw new SalesforceException("Unknown object: " + objectName);
+		}
+		BulkClient client = createBulkClient();
+		ReentrantLock lock = new ReentrantLock();
+		SQLSyncResult result = new SQLSyncResult(client, request, objectDef, lock);
+		lock.lock();
+		Exception e = result.getException();
+		if (e != null) {
+			if (e instanceof IOException) {
+				throw (IOException)e;
+			} else if (e instanceof SQLException) {
+				throw (SQLException)e;
+			} else if (e instanceof SoapException) {
+				throw (SoapException)e;
+			} else if (e instanceof RuntimeException) {
+				throw (RuntimeException)e;
+			} else {
+				throw new IllegalStateException(e);
+			}
+		}
+		return result;
 	}
 	
 	/////////////////////////////////////////////////////////////////////////////

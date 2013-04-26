@@ -130,6 +130,9 @@ public class BulkClient {
 		String url = getUrl("/job/" + job.getId() + "/batch");
 		HttpPost method = new HttpPost(url);
 		InputStreamEntity entity = new InputStreamEntity(is, length);
+		if (job.getContentType() == null) {
+			System.out.println("Invalid job: " + job);
+		}
 		entity.setContentType(job.getContentType().getHeaderValue());
 		method.setEntity(entity);
 		BatchInfo ret = new BatchInfo(job.getObjectName());
@@ -142,9 +145,9 @@ public class BulkClient {
 		HttpGet method = new HttpGet(url);
 		
 		String str = execute("getBatchStatus", method);
-		batch.clear();
-		batch.parse(str);
-		return batch;
+		BatchInfo ret = new BatchInfo(batch.getObjectName());
+		ret.parse(str);
+		return ret;
 	}
 	
 	public List<BatchInfo> getAllBatchStatus(JobInfo job) throws IOException, BulkApiException {
@@ -255,9 +258,9 @@ public class BulkClient {
 		String url = getUrl("/job/" + job.getId());
 		HttpGet method = new HttpGet(url);
 		
-		job.clear();
-		job.parse(execute("getJobStatus", method));
-		return job;
+		JobInfo ret = new JobInfo();
+		ret.parse(execute("getJobStatus", method));
+		return ret;
 	}
 	
 	public JobInfo closeJob(JobInfo job) throws IOException, BulkApiException {
@@ -324,7 +327,6 @@ public class BulkClient {
 	
 	private void error(HttpResponse res) throws BulkApiException, IOException {
 		String content = HttpUtils.getContent(res);
-System.out.println("error - " + res.getStatusLine().getStatusCode() + "\n" + content);
 		try {
 			Document doc = XMLUtils.parse(new StringReader(content));
 			Element root = doc.getDocumentElement();

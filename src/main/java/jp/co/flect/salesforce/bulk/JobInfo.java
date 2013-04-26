@@ -167,6 +167,20 @@ public class JobInfo extends AbstractBulkInfo {
 	public ConcurrencyMode getConcurrencyMode() { return (ConcurrencyMode)get("concurrencyMode");}
 	public void setConccurencyMode(ConcurrencyMode mode) { put("concurrencyMode", mode);}
 	
+	public int getBatchesCompleted() { return getInt("numberBatchesCompleted");}
+	public int getBatchesFailed() { return getInt("numberBatchesFailed");}
+	public int getBatchesTotal() { return getInt("numberBatchesTotal");}
+	
 	//Response
 	public JobState getState() { return (JobState)get("state");}
+	
+	public boolean isCompleted() {
+		JobState s = getState();
+		return s == JobState.Closed && getBatchesTotal() == getBatchesCompleted() + getBatchesFailed();
+	}
+	
+	public boolean isAborted() {
+		return getState() == JobState.Aborted;
+	}
+	
 }

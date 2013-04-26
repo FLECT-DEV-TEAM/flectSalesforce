@@ -77,16 +77,37 @@ public class SQLSynchronizer {
 		return job;
 	}
 	
+	private void doError(Exception e) {
+		fireEvent(new SQLSynchronizerEvent(this, SQLSynchronizerEvent.EventType.ERROR, e));
+	}
+	
+	private void doNotProcessed() {
+		fireEvent(new SQLSynchronizerEvent(this, SQLSynchronizerEvent.EventType.NOT_PROCESSED));
+	}
+	
 	public List<BatchInfo> sqlToSalesforce(SObjectDef objectDef, String externalIdFieldName, String sql, Object... params) throws SQLException, IOException, BulkApiException {
 		List<BatchInfo> ret = new ArrayList<BatchInfo>();
-		List<File> list = selectToCsv(objectDef, externalIdFieldName, sql, params);
+		List<File> list = null;
+		try {
+			list = selectToCsv(objectDef, externalIdFieldName, sql, params);
+		} catch (SQLException e) {
+			doError(e);
+			throw e;
+		} catch (IOException e) {
+			doError(e);
+			throw e;
+		} catch (BulkApiException e) {
+			doError(e);
+			throw e;
+		}
 		if (list == null) {
-			ret.add(BatchInfo.createNotProcessed(objectDef.getName()));
-			return ret;
+			doNotProcessed();
+			return null;
 		}
 		JobInfo job = null;
 		try {
-			job = new JobInfo(JobInfo.Operation.Upsert, objectDef.getName());
+			JobInfo.Operation op = externalIdFieldName == null ? JobInfo.Operation.Insert : JobInfo.Operation.Upsert;
+			job = new JobInfo(op, objectDef.getName());
 			job.setExternalIdFieldName(externalIdFieldName);
 			
 			job = client.openJob(job);
@@ -101,11 +122,19 @@ public class SQLSynchronizer {
 			}
 			return ret;
 		} catch (IOException e) {
+			doError(e);
 			if (job != null && job.getId() != null) {
 				doAbortJob(job);
 			}
 			throw e;
 		} catch (BulkApiException e) {
+			doError(e);
+			if (job != null && job.getId() != null) {
+				doAbortJob(job);
+			}
+			throw e;
+		} catch (RuntimeException e) {
+			doError(e);
 			if (job != null && job.getId() != null) {
 				doAbortJob(job);
 			}
@@ -121,8 +150,10 @@ public class SQLSynchronizer {
 		List<File> list = null;
 		PreparedStatement stmt = con.prepareStatement(sql);
 		try {
-			for (int i=0; i<params.length; i++) {
-				setParameter(stmt, i + 1, params[i]);
+			if (params != null) {
+				for (int i=0; i<params.length; i++) {
+					setParameter(stmt, i + 1, params[i]);
+				}
 			}
 			ResultSet rs = stmt.executeQuery();
 			fireEvent(new SQLSynchronizerEvent(this, SQLSynchronizerEvent.EventType.SELECT));
@@ -132,7 +163,7 @@ public class SQLSynchronizer {
 				}
 				ResultSetMetaData meta = rs.getMetaData();
 				int colCount = meta.getColumnCount();
-				boolean existExternalCol = false;
+				boolean existExternalCol = externalIdFieldName == null;
 				String[] names = new String[colCount];
 				FieldDef[] fields = new FieldDef[colCount];
 				for (int i=0; i<colCount; i++) {
@@ -141,7 +172,7 @@ public class SQLSynchronizer {
 					if (f == null) {
 						throw new BulkApiException("UnknownField : " + name, "SQLSync");
 					}
-					if (name.equalsIgnoreCase(externalIdFieldName)) {
+					if (!existExternalCol && name.equalsIgnoreCase(externalIdFieldName)) {
 						existExternalCol = true;
 					}
 					names[i] = name;
