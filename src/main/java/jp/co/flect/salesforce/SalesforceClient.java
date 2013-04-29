@@ -797,6 +797,52 @@ public class SalesforceClient extends SoapClient {
 		}
 	}
 	
+	/** 
+	 * 指定のオブジェクトをゴミ箱から削除します。
+	 */
+	public SaveResult emptyRecycleBin(String id) throws IOException, SoapException {
+		IdRequest request = new IdRequest(id);
+		request.setAllOrNone(this.defaultAllOrNone);
+		return emptyRecycleBin(request).get(0);
+	}
+	
+	/** 
+	 * 指定の複数のオブジェクトをゴミ箱から削除します。
+	 */
+	public List<SaveResult> emptyRecycleBin(List<String> ids) throws IOException, SoapException {
+		IdRequest request = new IdRequest(ids);
+		request.setAllOrNone(this.defaultAllOrNone);
+		return emptyRecycleBin(request);
+	}
+	
+	/** 
+	 * 指定の複数のオブジェクトをゴミ箱から削除します。
+	 */
+	public List<SaveResult> emptyRecycleBin(IdRequest request) throws IOException, SoapException {
+		checkLogin();
+		ExtendedMap params = new ExtendedMap(true);
+		params.putDeep("emptyRecycleBin.ids", request.getIdList());
+		if (request.isAllOrNone()) {
+			params.putDeep("AllOrNoneHeader.allOrNone", "true");
+		}
+		try {
+			SoapResponse res = invoke("emptyRecycleBin", null, params);
+			
+			SaveResult result = new SaveResult();
+			StAXConstructor<SaveResult> builder = new StAXConstructor<SaveResult>(new QName(this.meta.getMessageURI(), "result"), result);
+			return builder.build(res.getAsString());
+		} catch (XMLStreamException e) {
+			//not occur
+			throw new IllegalStateException(e);
+		} catch (StAXConstructException e) {
+			//not occur
+			throw new IllegalStateException(e);
+		} catch (TemplateException e) {
+			//not occur
+			throw new IllegalStateException(e);
+		}
+	}
+	
 	/////////////////////////////////////////////////////////////////////////////
 	// execute DML 
 	/////////////////////////////////////////////////////////////////////////////
