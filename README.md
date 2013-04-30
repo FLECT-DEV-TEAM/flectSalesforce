@@ -12,3 +12,7 @@ If you want to build this library, you must build and install following maven pr
 
 - [flectCommon](https://github.com/shunjikonishi/flectCommon)
 - [flectSoap](https://github.com/shunjikonishi/flectSoap)
+
+License
+-------
+MIT
