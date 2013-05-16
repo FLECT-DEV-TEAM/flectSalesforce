@@ -170,6 +170,15 @@ public class SQLSynchronizer {
 					String name = meta.getColumnLabel(i+1);
 					FieldDef f = objectDef.getField(name);
 					if (f == null) {
+						String[] refNames = name.split("\\.");
+						if (refNames.length == 2) {
+							FieldDef rf = objectDef.getSingleRelation(refNames[0]);
+							if (rf != null) {
+								names[i] = name;
+								fields[i] = null;
+								continue;
+							}
+						}
 						throw new BulkApiException("UnknownField : " + name, "SQLSync");
 					}
 					if (!existExternalCol && name.equalsIgnoreCase(externalIdFieldName)) {
@@ -238,6 +247,9 @@ public class SQLSynchronizer {
 	}
 	
 	private String getString(ResultSet rs, int idx, FieldDef f) throws SQLException {
+		if (f == null) {
+			return rs.getString(idx);
+		}
 		SimpleType soapType = f.getSoapType();
 		if (soapType.isDateType()) {
 			if (soapType.getName().equals(DateType.NAME)) {
