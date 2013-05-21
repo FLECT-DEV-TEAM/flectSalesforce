@@ -11,6 +11,7 @@ import jp.co.flect.salesforce.SObjectDef;
 import jp.co.flect.salesforce.FieldDef;
 import jp.co.flect.salesforce.query.QueryResult;
 import jp.co.flect.xml.XMLWriter;
+import jp.co.flect.xml.XMLUtils;
 
 /**
  * create/update/upsertリクエストを作成するWriter
@@ -66,14 +67,18 @@ public class ModifyRequestWriter {
 	private void doWrite(XMLWriter writer) throws IOException {
 		writer.xmlDecl();
 		writer.indent(false);
-		Map<String, String> envelopeAttrs = new TreeMap<String, String>();
-		envelopeAttrs.put("xmlns:" + MESSAGE_PREFIX.substring(0, MESSAGE_PREFIX.length()-1), this.messageUri);
-		envelopeAttrs.put("xmlns:" + OBJECT_PREFIX.substring(0, OBJECT_PREFIX.length()-1), this.objectUri);
 		
-		writer.startSoapEnvelope(envelopeAttrs);
+		writer.openElement("soap:Envelope");
+		writer.attr("xmlns:soap", XMLUtils.XMLNS_SOAP_ENVELOPE);
+		writer.attr("xmlns:xsd", XMLUtils.XMLNS_XSD);
+		writer.attr("xmlns:xsi", XMLUtils.XMLNS_XSI);
+		writer.attr("xmlns:" + MESSAGE_PREFIX.substring(0, MESSAGE_PREFIX.length()-1), this.messageUri);
+		writer.attr("xmlns:" + OBJECT_PREFIX.substring(0, OBJECT_PREFIX.length()-1), this.objectUri);
+		writer.endTag();
 		writer.indent(true);
 		
-		writer.startSoapHeader();
+		writer.openElement("soap:Header");
+		writer.endTag();
 		writer.indent(true);
 		
 		writeHeader(writer, "SessionHeader", "sessionId", this.sessionId);
@@ -82,9 +87,10 @@ public class ModifyRequestWriter {
 			writeHeader(writer, "AllOrNoneHeader", "allOrNone", "true");
 		}
 		writer.unindent();
-		writer.endSoapHeader();
+		writer.endElement("soap:Header");
 		writer.indent(false);
-		writer.startSoapBody();
+		writer.openElement("soap:Body");
+		writer.endTag();
 		writer.indent(true);
 		
 		String opName = MESSAGE_PREFIX + this.request.getOperationName();
@@ -109,9 +115,9 @@ public class ModifyRequestWriter {
 		writer.unindent();
 		writer.endElement(opName);
 		writer.unindent();
-		writer.endSoapBody();
+		writer.endElement("soap:Body");
 		writer.unindent();
-		writer.endSoapEnvelope();
+		writer.endElement("soap:Envelope");
 	}
 	
 	private void writeHeader(XMLWriter writer, String headerName, String childName, String value) throws IOException {
