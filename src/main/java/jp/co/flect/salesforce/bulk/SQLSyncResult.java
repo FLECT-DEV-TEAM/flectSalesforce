@@ -124,6 +124,12 @@ public class SQLSyncResult implements Future<JobInfo> {
 				
 				SQLSynchronizer sync = new SQLSynchronizer(request.getConnection(), client);
 				sync.addSQLSynchronizerListener(new MyListener());
+				SQLSynchronizerListener[] listeners = request.getSQLSynchronizerListeners();
+				if (listeners != null && listeners.length > 0) {
+					for (SQLSynchronizerListener l : listeners) {
+						sync.addSQLSynchronizerListener(l);
+					}
+				}
 				sync.sqlToSalesforce(objectDef, request.getExternalIdFieldName(), request.getSQL(), request.getParams());
 			} catch (RuntimeException e) {
 				e.printStackTrace();
