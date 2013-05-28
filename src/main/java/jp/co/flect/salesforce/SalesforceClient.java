@@ -945,7 +945,12 @@ public class SalesforceClient extends SoapClient {
 			URL url = new URL(getEndpoint());
 			String host = url.getHost();
 			String apiVersion = getApiVersion();
-			return new BulkClient(this.meta, host, apiVersion, this.sessionId);
+			BulkClient ret = new BulkClient(this.meta, host, apiVersion, this.sessionId);
+			ProxyInfo pi = getProxyInfo();
+			if (pi != null) {
+				ret.setProxyInfo(pi.getHost(), pi.getPort(), pi.getUserName(), pi.getPassword());
+			}
+			return ret;
 		} catch (MalformedURLException e) {
 			throw new IllegalStateException(e);
 		}

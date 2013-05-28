@@ -17,6 +17,10 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamReader;
 import javax.xml.stream.XMLStreamException;
 
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.conn.params.ConnRoutePNames;
+import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
@@ -31,6 +35,7 @@ import org.apache.http.util.EntityUtils;
 
 import jp.co.flect.log.Logger;
 import jp.co.flect.log.LoggerFactory;
+import jp.co.flect.soap.SoapClient.ProxyInfo;
 import jp.co.flect.net.HttpUtils;
 import jp.co.flect.salesforce.Metadata;
 import jp.co.flect.xml.XMLUtils;
@@ -47,6 +52,7 @@ public class BulkClient {
 	private String host;
 	private String apiVersion;
 	private String sessionId;
+	private ProxyInfo proxyInfo = null;
 	
 	public BulkClient(Metadata meta, String host, String apiVersion, String sessionId) {
 		this.meta = meta;
@@ -222,7 +228,7 @@ public class BulkClient {
 		method.addHeader(SESSION_HEADER, this.sessionId);
 		
 		long t = System.currentTimeMillis();
-		HttpClient client = new DefaultHttpClient();
+		HttpClient client = createHttpClient();
 		try {
 			HttpResponse res = client.execute(method);
 			if (!HttpUtils.isResponseOk(res)) {
@@ -242,7 +248,7 @@ public class BulkClient {
 		method.addHeader(SESSION_HEADER, this.sessionId);
 		
 		long t = System.currentTimeMillis();
-		HttpClient client = new DefaultHttpClient();
+		HttpClient client = createHttpClient();
 		try {
 			HttpResponse res = client.execute(method);
 			if (!HttpUtils.isResponseOk(res)) {
@@ -289,7 +295,7 @@ public class BulkClient {
 		method.addHeader(SESSION_HEADER, this.sessionId);
 		
 		long t = System.currentTimeMillis();
-		HttpClient client = new DefaultHttpClient();
+		HttpClient client = createHttpClient();
 		try {
 			HttpResponse res = client.execute(method);
 			if (!HttpUtils.isResponseOk(res)) {
@@ -311,7 +317,7 @@ public class BulkClient {
 	private String execute(String op, HttpUriRequest method) throws IOException, BulkApiException {
 		method.addHeader(SESSION_HEADER, this.sessionId);
 		long t = System.currentTimeMillis();
-		HttpClient client = new DefaultHttpClient();
+		HttpClient client = createHttpClient();
 		try {
 			HttpResponse res = client.execute(method);
 			if (!HttpUtils.isResponseOk(res)) {
@@ -340,5 +346,29 @@ public class BulkClient {
 			throw new IllegalStateException(e);
 		}
 	}
+	
+	private HttpClient createHttpClient() {
+		DefaultHttpClient client = new DefaultHttpClient();
+		if (this.proxyInfo != null) {
+			HttpHost proxy = new HttpHost(proxyInfo.getHost(), proxyInfo.getPort());
+			client.getParams().setParameter(ConnRoutePNames.DEFAULT_PROXY, proxy);
+			if (proxyInfo.getUserName() != null && proxyInfo.getPassword() != null) {
+				client.getCredentialsProvider().setCredentials(
+					new AuthScope(proxyInfo.getHost(), proxyInfo.getPort()),
+					new UsernamePasswordCredentials(proxyInfo.getUserName(), proxyInfo.getPassword()));
+			}
+		}
+		return client;
+	}
+	
+	public void setProxyInfo(String host, int port) {
+		setProxyInfo(host, port, null, null);
+	}
+	
+	public void setProxyInfo(String host, int port, String username, String password) {
+		this.proxyInfo = new ProxyInfo(host, port, username, password);
+	}
+	
+	public ProxyInfo getProxyInfo() { return this.proxyInfo;}
 	
 }
