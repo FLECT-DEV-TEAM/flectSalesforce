@@ -125,7 +125,7 @@ public class Tokenizer {
 			case '>':
 				buf.append(c);
 				if (index < len) {
-					char c2 = str.charAt(index+1);
+					char c2 = str.charAt(index);
 					if (c2 == '=') {
 						buf.append(c2);
 						index++;
