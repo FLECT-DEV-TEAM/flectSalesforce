@@ -32,6 +32,7 @@ public class SQLSynchronizer {
 	private boolean useNAifNull = false;
 	private int batchRecords = 10000;
 	private boolean autoClose = true;
+	private boolean bParallel = true;
 	
 	private EventListenerList listeners = new EventListenerList();
 	
@@ -48,6 +49,9 @@ public class SQLSynchronizer {
 	
 	public boolean isAutoClose() { return this.autoClose;}
 	public void setAutoClose(boolean b) { this.autoClose = b;}
+	
+	public boolean isParallel() { return this.bParallel;}
+	public void setParallel(boolean b) { this.bParallel = b;}
 	
 	public JobInfo closeJob(BatchInfo batch) throws IOException, BulkApiException {
 		if (batch.getJobId() == null) {
@@ -109,6 +113,9 @@ public class SQLSynchronizer {
 			JobInfo.Operation op = externalIdFieldName == null ? JobInfo.Operation.Insert : JobInfo.Operation.Upsert;
 			job = new JobInfo(op, objectDef.getName());
 			job.setExternalIdFieldName(externalIdFieldName);
+			
+			JobInfo.ConcurrencyMode cMode = this.bParallel ? JobInfo.ConcurrencyMode.Parallel : JobInfo.ConcurrencyMode.Serial;
+			job.setConccurencyMode(cMode);
 			
 			job = client.openJob(job);
 			fireEvent(new SQLSynchronizerEvent(this, SQLSynchronizerEvent.EventType.OPEN_JOB, job));

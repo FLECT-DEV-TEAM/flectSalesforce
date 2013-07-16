@@ -12,6 +12,7 @@ public class SQLSyncRequest {
 	private String externalIdFieldName;
 	private Object[] params;
 	private EventListenerList listeners = new EventListenerList();
+	private boolean bParallel = true;
 	
 	public SQLSyncRequest(Connection con, String sql, String objectName) {
 		this.con = con;
@@ -40,4 +41,7 @@ public class SQLSyncRequest {
 	public SQLSynchronizerListener[] getSQLSynchronizerListeners() {
 		return this.listeners.getListeners(SQLSynchronizerListener.class);
 	}
+	
+	public boolean isParallel() { return this.bParallel;}
+	public void setParallel(boolean b) { this.bParallel = b;}
 }

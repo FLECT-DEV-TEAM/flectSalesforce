@@ -123,6 +123,7 @@ public class SQLSyncResult implements Future<JobInfo> {
 				SQLSyncResult.this.started = true;
 				
 				SQLSynchronizer sync = new SQLSynchronizer(request.getConnection(), client);
+				sync.setParallel(request.isParallel());
 				sync.addSQLSynchronizerListener(new MyListener());
 				SQLSynchronizerListener[] listeners = request.getSQLSynchronizerListeners();
 				if (listeners != null && listeners.length > 0) {
