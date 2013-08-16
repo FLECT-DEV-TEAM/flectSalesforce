@@ -52,7 +52,8 @@ public enum MetadataType {
 	Workflow,
 	//
 	CustomField(false),
-	PicklistValue(false)
+	PicklistValue(false),
+	ValidationRule(false)
 	;
 	
 	private boolean topLevel;

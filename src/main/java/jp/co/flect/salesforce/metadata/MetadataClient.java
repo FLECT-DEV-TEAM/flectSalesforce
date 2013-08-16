@@ -189,6 +189,11 @@ public class MetadataClient extends SoapClient {
 			throw new IllegalStateException(e);
 		}
 	}
+	
+	public AsyncResult checkStatus(AsyncResult result) throws IOException, SoapException {
+		return checkStatus(Arrays.asList(result.getId())).get(0);
+	}
+	
 	public AsyncResult checkStatus(String id) throws IOException, SoapException {
 		return checkStatus(Arrays.asList(id)).get(0);
 	}
@@ -284,7 +289,7 @@ public class MetadataClient extends SoapClient {
 	}
 	
 	private static Map<String, Object> simpleObjectToMap(SimpleObject obj) {
-		Map<String, Object> map = new HashMap<String, Object>();
+		Map<String, Object> map = new ExtendedMap(true);
 		for (Map.Entry<String, Object> entry : obj.getMap().entrySet()) {
 			String key = entry.getKey();
 			Object value = entry.getValue();
