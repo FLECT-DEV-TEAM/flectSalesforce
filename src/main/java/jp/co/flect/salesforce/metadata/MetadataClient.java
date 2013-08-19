@@ -190,7 +190,15 @@ public class MetadataClient extends SoapClient {
 		}
 	}
 	
-	public AsyncResult checkStatus(AsyncResult result) throws IOException, SoapException {
+	public List<AsyncResult> checkStatusEx(List<AsyncResult> results) throws IOException, SoapException {
+		List<String> list = new ArrayList<String>(results.size());
+		for (AsyncResult result : results) {
+			list.add(result.getId());
+		}
+		return checkStatus(list);
+	}
+	
+	public AsyncResult checkStatusEx(AsyncResult result) throws IOException, SoapException {
 		return checkStatus(Arrays.asList(result.getId())).get(0);
 	}
 	

@@ -19,6 +19,9 @@ public class AsyncResult extends SimpleObject {
 	
 	public AsyncRequestState getState() { return AsyncRequestState.valueOf(getString("state"));}
 	
+	public String getMessage() { return getString("message");}
+	public String getStatusCode() { return getString("statusCode");}
+	
 	public void setRelatedMetadata(BaseMetadata v) { this.related = v;}
 	public BaseMetadata getRelatedMetadata() { return this.related;}
 }
