@@ -22,6 +22,7 @@ import jp.co.flect.xmlschema.TypeDef;
 import jp.co.flect.xmlschema.ElementDef;
 import jp.co.flect.salesforce.annotation.ApiName;
 import jp.co.flect.salesforce.query.QueryResult;
+import jp.co.flect.salesforce.sobject.User;
 import jp.co.flect.soap.SimpleObject;
 
 
@@ -673,4 +674,48 @@ public class SObject extends SimpleObject {
 		}
 	}
 	
+	//Common fields
+	public String getName() { return getString("Name");}
+	public void setName(String s) { set("Name", s);}
+	
+	public User getCreatedBy() { return (User)getObject("CreatedBy");}
+	
+	public String getCreatedById() {
+		String id = getString("CreatedById");
+		if (id != null) {
+			return id;
+		}
+		User user = getCreatedBy();
+		return user != null ? user.getId() : null;
+	}
+	
+	public Date getCreatedDate() { return getDate("CreatedDate");}
+	
+	public boolean isDeleted() { return getBoolean("IsDeleted");}
+	
+	public User getLastModifiedBy() { return (User)getObject("LastModifiedBy");}
+	
+	public String getLastModifiedById() {
+		String id = getString("LastModifiedById");
+		if (id != null) {
+			return id;
+		}
+		User user = getLastModifiedBy();
+		return user != null ? user.getId() : null;
+	}
+	
+	public Date getLastModifiedDate() { return getDate("LastModifiedDate");}
+	
+	public User getOwner() { return (User)getObject("Owner");}
+	
+	public String getOwnerId() {
+		String id = getString("OwnerId");
+		if (id != null) {
+			return id;
+		}
+		User user = getOwner();
+		return user != null ? user.getId() : null;
+	}
+	
+	public Date getSystemModstamp() { return getDate("SystemModstamp");}
 }

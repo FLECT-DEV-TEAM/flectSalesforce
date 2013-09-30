@@ -6,7 +6,7 @@
 	
 	<groupId>jp.co.flect</groupId>
 	<artifactId>flectSalesforce</artifactId>
-	<version>1.2-SNAPSHOT</version>
+	<version>1.1.1</version>
 	<packaging>jar</packaging>
 
 	<name>flectSalesforce</name>
@@ -16,6 +16,14 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<github.global.server>github</github.global.server>
 	</properties>
+	
+	<repositories>
+		<repository>
+			<id>flect</id>
+			<name>flect</name>
+			<url>http://flect.github.io/maven-repo/</url>
+		</repository>
+	</repositories>
 	
 	<dependencies>
 		<dependency>
@@ -31,7 +39,7 @@
 		<dependency>
 			<groupId>jp.co.flect</groupId>
 			<artifactId>flectSoap</artifactId>
-			<version>1.1</version>
+			<version>1.1.1</version>
 		</dependency>
 		
 		<dependency>

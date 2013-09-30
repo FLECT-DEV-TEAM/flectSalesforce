@@ -18,6 +18,7 @@ import jp.co.flect.xml.StAXConstructException;
 import jp.co.flect.xmlschema.ComplexType;
 import jp.co.flect.xmlschema.TypeDef;
 import jp.co.flect.xmlschema.XMLSchema;
+import jp.co.flect.salesforce.sobject.User;
 
 /**
  * Metadata
@@ -32,6 +33,10 @@ public class Metadata implements StAXConstruct<Metadata>, Serializable {
 	
 	public static <T extends SObject> void registerClass(String name, Class<T> clazz) {
 		classMap.put(name, clazz);
+	}
+	
+	static {
+		Metadata.registerClass("User", User.class);
 	}
 	
 	public static boolean isClassRegistered(String name) {
