@@ -111,10 +111,19 @@ public class SalesforceClient extends SoapClient {
 	
 	/**
 	 * コンストラクタ
-	 * @param wsdlFile WSDLのDOMドキュメント
+	 * @param doc WSDLのDOMドキュメント
 	 */
 	public SalesforceClient(Document doc) throws InvalidWSDLException, XMLSchemaException {
 		super(doc, new VelocityTemplateBuilder());
+		initialize();
+	}
+	
+	/**
+	 * コンストラクタ
+	 * @param wsdl WSDL
+	 */
+	public SalesforceClient(WSDL wsdl) {
+		super(wsdl, new VelocityTemplateBuilder());
 		initialize();
 	}
 	
