@@ -53,6 +53,9 @@ import jp.co.flect.salesforce.bulk.BulkClient;
 import jp.co.flect.salesforce.bulk.SQLSynchronizer;
 import jp.co.flect.salesforce.bulk.SQLSyncRequest;
 import jp.co.flect.salesforce.bulk.SQLSyncResult;
+import jp.co.flect.salesforce.bulk.SObjectSynchronizer;
+import jp.co.flect.salesforce.bulk.SObjectSyncRequest;
+import jp.co.flect.salesforce.bulk.SObjectSyncResult;
 import jp.co.flect.salesforce.event.SQLSynchronizerEvent;
 import jp.co.flect.salesforce.event.SQLSynchronizerListener;
 import jp.co.flect.salesforce.query.QueryResult;
@@ -993,6 +996,12 @@ public class SalesforceClient extends SoapClient {
 			}
 		}
 		return result;
+	}
+	
+	public SObjectSyncResult syncSObject(SObjectSyncRequest request) throws IOException, SQLException, SoapException {
+		SObjectSynchronizer sync = new SObjectSynchronizer(this, request);
+		sync.prepare();
+		return new SObjectSyncResult(sync);
 	}
 	
 	/////////////////////////////////////////////////////////////////////////////
