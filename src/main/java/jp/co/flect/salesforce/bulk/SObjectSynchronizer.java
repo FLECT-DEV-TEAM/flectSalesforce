@@ -15,6 +15,8 @@ import jp.co.flect.salesforce.SalesforceClient;
 import jp.co.flect.salesforce.SObject;
 import jp.co.flect.salesforce.SObjectDef;
 import jp.co.flect.salesforce.FieldDef;
+import jp.co.flect.salesforce.query.QueryRequest;
+import jp.co.flect.salesforce.query.QueryMoreRequest;
 import jp.co.flect.salesforce.query.QueryResult;
 import jp.co.flect.xmlschema.TypedValue;
 import jp.co.flect.xmlschema.SimpleType;
@@ -25,21 +27,28 @@ public class SObjectSynchronizer {
 	private SObjectSyncRequest request;
 	private ColumnMap colMap = null;
 	
+	private int successCount;
+	private int errorCount;
+	
 	public SObjectSynchronizer(SalesforceClient client, SObjectSyncRequest request) {
 		this.client = client;
 		this.request = request;
 	}
 	
-	public int execute() throws IOException, SoapException, SQLException {
+	public SObjectSyncInfo execute() throws IOException, SoapException, SQLException {
 		if (this.colMap == null) {
 			prepare();
 		}
+		this.successCount = 0;
+		this.errorCount = 0;
 		
-		int ret = 0;
+		int ret  = 0;
 		String query = buildQuery();
 		MergeTable table = createMergeTable(colMap, request.getConnection());
 		try {
-			QueryResult<SObject> result = client.query(query);
+			QueryRequest qRequest = new QueryRequest(query);
+			qRequest.setBatchSize(request.getBatchSize());
+			QueryResult<SObject> result = client.query(qRequest);
 			while (true) {
 				for (SObject obj : result.getRecords()) {
 					table.addObject(obj);
@@ -47,13 +56,15 @@ public class SObjectSynchronizer {
 				}
 				table.execute();
 				if (result.getQueryLocator() != null) {
-					result = client.queryMore(result.getQueryLocator());
+					QueryMoreRequest qmRequest = new QueryMoreRequest(result.getQueryLocator());
+					qmRequest.setBatchSize(request.getBatchSize());
+					result = client.queryMore(qmRequest);
 				} else {
 					break;
 				}
 			}
 			table.commit();
-			return ret;
+			return new SObjectSyncInfo(ret, 0, null);
 		} catch (IOException e) {
 			table.rollback();
 			throw e;

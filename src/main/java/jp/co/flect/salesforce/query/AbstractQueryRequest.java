@@ -21,7 +21,7 @@ public abstract class AbstractQueryRequest {
 	
 	/** 戻り値のサイズを返します */
 	public int getBatchSize() { return this.batchSize;}
-	/** 戻り値のサイズを設定します。<br>設定可能な値は200-1000です。 */
+	/** 戻り値のサイズを設定します。<br>設定可能な値は200-2000です。 */
 	public void setBatchSize(int n) { this.batchSize = n;}
 	
 	/** 戻り値のクラスを返します。 */

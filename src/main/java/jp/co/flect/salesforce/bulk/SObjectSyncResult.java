@@ -5,11 +5,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.ExecutionException;
 
-public class SObjectSyncResult implements Future<Integer> {
+public class SObjectSyncResult implements Future<SObjectSyncInfo> {
 	
-	private volatile Integer result = null;
+	private volatile SObjectSyncInfo result = null;
 	private boolean canceled = false;
-	private Exception exception = null;
 	private Thread execThread;
 	
 	public SObjectSyncResult(final SObjectSynchronizer sync) {
@@ -18,15 +17,12 @@ public class SObjectSyncResult implements Future<Integer> {
 				try {
 					SObjectSyncResult.this.result = sync.execute();
 				} catch (Exception e) {
-					SObjectSyncResult.this.exception = e;
-					SObjectSyncResult.this.result = 0;
+					SObjectSyncResult.this.result = new SObjectSyncInfo(e);
 				}
 			}
 		};
 		this.execThread.start();
 	}
-	
-	public Exception getException() { return this.exception;}
 	
 	public boolean cancel(boolean mayInterruptIfRunning) {
 		if (this.result != null) {
@@ -35,12 +31,12 @@ public class SObjectSyncResult implements Future<Integer> {
 		if (mayInterruptIfRunning) {
 			this.execThread.interrupt();
 		}
-		this.result = 0;
+		this.result = new SObjectSyncInfo(0, 0);
 		this.canceled = true;
 		return true;
 	}
 	
-	public Integer get()  throws InterruptedException, ExecutionException {
+	public SObjectSyncInfo get()  throws InterruptedException, ExecutionException {
 		if (this.result != null) {
 			return this.result;
 		}
@@ -48,7 +44,7 @@ public class SObjectSyncResult implements Future<Integer> {
 		return this.result;
 	}
 	
-	public Integer get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+	public SObjectSyncInfo get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
 		if (this.result != null) {
 			return this.result;
 		}
