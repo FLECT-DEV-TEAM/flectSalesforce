@@ -40,6 +40,7 @@ public class SObjectSyncRequest {
 	private int batchSize;
 	private SObjectSyncPolicy policy = SObjectSyncPolicy.CommitPerQuery;
 	private LinkedHashMap<String, String> fieldMapping = new LinkedHashMap<String, String>();
+	private LinkedHashMap<String, Object> defaultMapping = new LinkedHashMap<String, Object>();
 	private EventListenerList listeners = new EventListenerList();
 	
 	/**
@@ -121,6 +122,17 @@ public class SObjectSyncRequest {
 	 * マッピングされたSalesforceのオブジェクトフィールドに対応するRDBのテーブルカラムを返します。
 	 */
 	public String getMappedTableColumn(String objectFieldName) { return this.fieldMapping.get(objectFieldName);}
+	
+	/**
+	 * Salesforceに対応する列が無い場合のデフォルト値を登録済ます。<br>
+	 * @param tableFieldName テーブルのカラム名
+	 * @param value デフォルト値
+	 */
+	public void addDefaultMapping(String tableFieldName, Object value) {
+		this.defaultMapping.put(tableFieldName, value);
+	}
+	
+	public LinkedHashMap<String, Object> getDefaultMapping() { return this.defaultMapping;}
 	
 	/** 同期ポリシーを返します */
 	public SObjectSyncPolicy getPolicy() { return this.policy;}

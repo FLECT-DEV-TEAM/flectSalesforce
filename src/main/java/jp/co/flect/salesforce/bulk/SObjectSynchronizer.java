@@ -165,6 +165,11 @@ public class SObjectSynchronizer {
 		for (String name: request.getObjectFieldList()) {
 			checkSchema(objectDef, name);
 			String colName = request.getMappedTableColumn(name);
+			if (colName != null && !colMap.hasColumn(colName)) {
+				throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + colName);
+			}
+		}
+		for (String colName : request.getDefaultMapping().keySet()) {
 			if (!colMap.hasColumn(colName)) {
 				throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + colName);
 			}
@@ -327,6 +332,17 @@ public class SObjectSynchronizer {
 			
 			List<String> colList = request.getTableColumnList();
 			for (String name: colList) {
+				if (name == null) {
+					continue;
+				}
+				if (valueBuf.length() > 0) {
+					buf.append(", ");
+					valueBuf.append(", ");
+				}
+				buf.append(name);
+				valueBuf.append("?");
+			}
+			for (String name : request.getDefaultMapping().keySet()) {
 				if (valueBuf.length() > 0) {
 					buf.append(", ");
 					valueBuf.append(", ");
@@ -339,7 +355,7 @@ public class SObjectSynchronizer {
 			
 			valueBuf.setLength(0);
 			for (String name: colList) {
-				if (isKeyColumn(name)) {
+				if (name == null || isKeyColumn(name)) {
 					continue;
 				}
 				if (valueBuf.length() > 0) {
@@ -357,6 +373,9 @@ public class SObjectSynchronizer {
 			//INSERT clause
 			for (String name : fieldList) {
 				String colName = request.getMappedTableColumn(name);
+				if (colName == null) {
+					continue;
+				}
 				Object value = obj.getDeep(name);
 				int type = getColumnType(colName);
 				if (value == null) {
@@ -365,10 +384,16 @@ public class SObjectSynchronizer {
 					this.stmt.setObject(idx++, value, type);
 				}
 			}
+			for (Map.Entry<String, Object> entry : request.getDefaultMapping().entrySet()) {
+				String colName = entry.getKey();
+				Object value = entry.getValue();
+				int type = getColumnType(colName);
+				this.stmt.setObject(idx++, value, type);
+			}
 			//UPDATE clause
 			for (String name : fieldList) {
 				String colName = request.getMappedTableColumn(name);
-				if (isKeyColumn(colName)) {
+				if (colName == null || isKeyColumn(colName)) {
 					continue;
 				}
 				Object value = obj.getDeep(name);
