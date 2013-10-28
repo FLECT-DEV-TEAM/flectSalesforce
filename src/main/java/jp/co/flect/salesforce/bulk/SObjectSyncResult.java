@@ -17,7 +17,17 @@ public class SObjectSyncResult implements Future<SObjectSyncInfo> {
 				try {
 					SObjectSyncResult.this.result = sync.execute();
 				} catch (Exception e) {
-					SObjectSyncResult.this.result = new SObjectSyncInfo(e);
+					switch (sync.getRequest().getPolicy()) {
+						case CommitOnce:
+							SObjectSyncResult.this.result = new SObjectSyncInfo(e);
+							break;
+						case CommitPerQuery:
+							SObjectSyncResult.this.result = new SObjectSyncInfo(sync.getSuccessCount(), 0, e);
+							break;
+						case IgnoreRecordError:
+							SObjectSyncResult.this.result = new SObjectSyncInfo(sync.getSuccessCount(), sync.getErrorCount(), e);
+							break;
+					}
 				}
 			}
 		};

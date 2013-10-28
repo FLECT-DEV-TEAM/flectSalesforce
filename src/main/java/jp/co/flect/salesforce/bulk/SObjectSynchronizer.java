@@ -3,6 +3,7 @@ package jp.co.flect.salesforce.bulk;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.BatchUpdateException;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.io.IOException;
@@ -18,6 +19,9 @@ import jp.co.flect.salesforce.FieldDef;
 import jp.co.flect.salesforce.query.QueryRequest;
 import jp.co.flect.salesforce.query.QueryMoreRequest;
 import jp.co.flect.salesforce.query.QueryResult;
+import jp.co.flect.salesforce.event.SObjectSynchronizerListener;
+import jp.co.flect.salesforce.event.SObjectSynchronizerEvent;
+import jp.co.flect.salesforce.event.SObjectSynchronizerEvent.EventType;
 import jp.co.flect.xmlschema.TypedValue;
 import jp.co.flect.xmlschema.SimpleType;
 
@@ -35,6 +39,12 @@ public class SObjectSynchronizer {
 		this.request = request;
 	}
 	
+	public SObjectSyncRequest getRequest() { return this.request;}
+	public SalesforceClient getClient() { return this.client;}
+	
+	public int getSuccessCount() { return this.successCount;}
+	public int getErrorCount() { return this.errorCount;}
+	
 	public SObjectSyncInfo execute() throws IOException, SoapException, SQLException {
 		if (this.colMap == null) {
 			prepare();
@@ -42,19 +52,32 @@ public class SObjectSynchronizer {
 		this.successCount = 0;
 		this.errorCount = 0;
 		
-		int ret  = 0;
-		String query = buildQuery();
 		MergeTable table = createMergeTable(colMap, request.getConnection());
+		String query = buildQuery();
 		try {
 			QueryRequest qRequest = new QueryRequest(query);
 			qRequest.setBatchSize(request.getBatchSize());
 			QueryResult<SObject> result = client.query(qRequest);
 			while (true) {
+				fireEvent(new SObjectSynchronizerEvent(this, result));
 				for (SObject obj : result.getRecords()) {
 					table.addObject(obj);
-					ret++;
 				}
-				table.execute();
+				try {
+					table.execute();
+					this.successCount += result.getCurrentSize();
+				} catch (BatchUpdateException e) {
+					table.rollback();
+					if (request.getPolicy() != SObjectSyncRequest.SObjectSyncPolicy.IgnoreRecordError) {
+						fireEvent(new SObjectSynchronizerEvent(this, EventType.BATCH_ERROR, e));
+						throw e;
+					} else {
+						retry(table, result, e);
+					}
+				}
+				if (request.getPolicy() != SObjectSyncRequest.SObjectSyncPolicy.CommitOnce) {
+					table.commit();
+				}
 				if (result.getQueryLocator() != null) {
 					QueryMoreRequest qmRequest = new QueryMoreRequest(result.getQueryLocator());
 					qmRequest.setBatchSize(request.getBatchSize());
@@ -63,21 +86,66 @@ public class SObjectSynchronizer {
 					break;
 				}
 			}
-			table.commit();
-			return new SObjectSyncInfo(ret, 0, null);
+			if (request.getPolicy() == SObjectSyncRequest.SObjectSyncPolicy.CommitOnce) {
+				table.commit();
+			}
+			return new SObjectSyncInfo(this.successCount, this.errorCount, null);
 		} catch (IOException e) {
 			table.rollback();
+			fireEvent(new SObjectSynchronizerEvent(this, EventType.OTHER_ERROR, e));
 			throw e;
 		} catch (SoapException e) {
 			table.rollback();
+			fireEvent(new SObjectSynchronizerEvent(this, EventType.OTHER_ERROR, e));
+			throw e;
+		} catch (BatchUpdateException e) {
 			throw e;
 		} catch (SQLException e) {
 			table.rollback();
+			fireEvent(new SObjectSynchronizerEvent(this, EventType.OTHER_ERROR, e));
 			throw e;
+		} finally {
+			fireEvent(EventType.FINISHED);
+		}
+	}
+	
+	private void retry(MergeTable table, QueryResult<SObject> result, BatchUpdateException e) throws SQLException {
+		int[] updates = e.getUpdateCounts();
+		//assert updates.length == result.getCurrentSize();
+		//Retry error records
+		for (int i=0; i<updates.length; i++) {
+			int n = updates[i];
+			SObject obj = result.getRecords().get(i);
+			if (n < 0) {
+				try {
+					table.addObject(obj);
+					table.execute();
+					this.successCount++;
+				} catch (SQLException e2) {
+					this.errorCount++;
+					table.rollback();
+					fireEvent(new SObjectSynchronizerEvent(this, obj, e2));
+				}
+			}
+		}
+		//Retry normal record
+		for (int i=0; i<updates.length; i++) {
+			int n = updates[i];
+			SObject obj = result.getRecords().get(i);
+			if (n > 0) {
+				table.addObject(obj);
+			}
+		}
+		try {
+			int[] ret = table.execute();
+			this.successCount += ret.length;
+		} catch (BatchUpdateException e2) {
+			throw new SQLException(e2);
 		}
 	}
 	
 	public void prepare() throws IOException, SoapException, SQLException {
+		fireEvent(EventType.STARTED);
 		//Check rdb schema
 		ColumnMap colMap = new ColumnMap();
 		
@@ -109,6 +177,7 @@ public class SObjectSynchronizer {
 			}
 		}
 		this.colMap = colMap;
+		fireEvent(EventType.PREPARED);
 	}
 	
 	private SObjectDef getSObjectDef(String objectName) throws IOException, SoapException {
@@ -229,10 +298,16 @@ public class SObjectSynchronizer {
 		}
 		
 		public abstract void addObject(SObject obj) throws SQLException;
-		public abstract void execute() throws SQLException;
+		public abstract int[] execute() throws SQLException;
 		
-		public void commit() throws SQLException { this.con.commit();}
-		public void rollback() throws SQLException { this.con.rollback();}
+		public void commit() throws SQLException { 
+			this.con.commit();
+			fireEvent(EventType.COMMITED);
+		}
+		public void rollback() throws SQLException { 
+			this.con.rollback();
+			fireEvent(EventType.ROLLBACKED);
+		}
 		
 	}
 	
@@ -307,8 +382,10 @@ public class SObjectSynchronizer {
 			this.stmt.addBatch();
 		}
 		
-		public void execute() throws SQLException {
-			this.stmt.executeBatch();
+		public int[] execute() throws SQLException {
+			int[] ret = this.stmt.executeBatch();
+			fireEvent(EventType.UPDATED);
+			return ret;
 		}
 	}
 	
@@ -325,6 +402,33 @@ public class SObjectSynchronizer {
 		
 		public int getType(String name) {
 			return this.map.get(name.toLowerCase());
+		}
+	}
+	
+	private SObjectSynchronizerListener[] getSObjectSynchronizerListeners() {
+		return this.request.getSObjectSynchronizerListeners();
+	}
+	
+	private void fireEvent(EventType type) {
+		SObjectSynchronizerListener[] ls = getSObjectSynchronizerListeners();
+		if (ls == null || ls.length == 0) {
+			return;
+		}
+		
+		SObjectSynchronizerEvent event = new SObjectSynchronizerEvent(this, type);
+		for (int i=0; i<ls.length; i++) {
+			ls[i].handleEvent(event);
+		}
+	}
+	
+	private void fireEvent(SObjectSynchronizerEvent event) {
+		SObjectSynchronizerListener[] ls = getSObjectSynchronizerListeners();
+		if (ls == null || ls.length == 0) {
+			return;
+		}
+		
+		for (int i=0; i<ls.length; i++) {
+			ls[i].handleEvent(event);
 		}
 	}
 }

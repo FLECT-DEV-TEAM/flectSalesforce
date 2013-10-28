@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
+import javax.swing.event.EventListenerList;
+import jp.co.flect.salesforce.event.SObjectSynchronizerListener;
 
 /**
  * SalesforceのオブジェクトをRDBに同期するためのリクエストクラス
@@ -38,6 +40,7 @@ public class SObjectSyncRequest {
 	private int batchSize;
 	private SObjectSyncPolicy policy = SObjectSyncPolicy.CommitPerQuery;
 	private LinkedHashMap<String, String> fieldMapping = new LinkedHashMap<String, String>();
+	private EventListenerList listeners = new EventListenerList();
 	
 	/**
 	 * コンストラクタ
@@ -128,4 +131,16 @@ public class SObjectSyncRequest {
 	public int getBatchSize() { return this.batchSize;}
 	/** Salesforceクエリのバッチサイズを設定します */
 	public void setBatchSize(int n) { this.batchSize = n;}
+	
+	public void addSObjectSynchronizerListener(SObjectSynchronizerListener l) {
+		this.listeners.add(SObjectSynchronizerListener.class, l);
+	}
+	
+	public void removeSObjectSynchronizerListener(SObjectSynchronizerListener l) {
+		this.listeners.remove(SObjectSynchronizerListener.class, l);
+	}
+	
+	public SObjectSynchronizerListener[] getSObjectSynchronizerListeners() {
+		return this.listeners.getListeners(SObjectSynchronizerListener.class);
+	}
 }
