@@ -11,6 +11,7 @@ import java.util.Date;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import jp.co.flect.soap.SoapException;
 import jp.co.flect.salesforce.SalesforceClient;
 import jp.co.flect.salesforce.SObject;
@@ -53,8 +54,8 @@ public class SObjectSynchronizer {
 		this.errorCount = 0;
 		
 		MergeTable table = createMergeTable(colMap, request.getConnection());
-		String query = buildQuery();
 		try {
+			String query = buildQuery();
 			QueryRequest qRequest = new QueryRequest(query);
 			qRequest.setBatchSize(request.getBatchSize());
 			QueryResult<SObject> result = client.query(qRequest);
@@ -105,6 +106,7 @@ public class SObjectSynchronizer {
 			fireEvent(new SObjectSynchronizerEvent(this, EventType.OTHER_ERROR, e));
 			throw e;
 		} finally {
+			table.close();
 			fireEvent(EventType.FINISHED);
 		}
 	}
@@ -269,7 +271,7 @@ public class SObjectSynchronizer {
 	private MergeTable createMergeTable(ColumnMap colMap, Connection con) throws SQLException {
 		if (isMySQL(con)) return new MergeTableForMySQL(colMap, con);
 		
-		throw new UnsupportedOperationException("Unsupported database: " + con.getMetaData().getDatabaseProductName());
+		return new DefaultMergeTable(colMap, con);
 	}
 	
 	private boolean isKeyColumn(String name) {
@@ -282,6 +284,11 @@ public class SObjectSynchronizer {
 			}
 		}
 		return false;
+	}
+	
+	private boolean hasKeyColumn() {
+		String[] keys = request.getKeyColumns();
+		return keys != null && keys.length > 0;
 	}
 	
 	private abstract class MergeTable {
@@ -298,16 +305,186 @@ public class SObjectSynchronizer {
 			return this.colMap.getType(name);
 		}
 		
+		protected void addParameter(PreparedStatement stmt, int idx, SObject obj, String colName) throws SQLException {
+			Object value = request.getFunction(colName).evaluate(obj);
+			int type = getColumnType(colName);
+			if (value == null) {
+				stmt.setNull(idx, type);
+			} else {
+				stmt.setObject(idx, value, type);
+			}
+		}
+		
 		public abstract void addObject(SObject obj) throws SQLException;
 		public abstract int[] execute() throws SQLException;
+		public abstract void close();
 		
 		public void commit() throws SQLException { 
 			this.con.commit();
 			fireEvent(EventType.COMMITED);
 		}
+		
 		public void rollback() throws SQLException { 
 			this.con.rollback();
 			fireEvent(EventType.ROLLBACKED);
+		}
+		
+	}
+	
+	private class DefaultMergeTable extends MergeTable {
+		
+		private PreparedStatement insertStmt;
+		private PreparedStatement updateStmt;
+		private List<SObject> objList = new ArrayList<SObject>();
+		
+		public DefaultMergeTable(ColumnMap colMap, Connection con) throws SQLException {
+			super(colMap, con);
+			this.insertStmt = con.prepareStatement(createInsertStatement());
+			if (hasKeyColumn()) {
+				this.updateStmt = con.prepareStatement(createUpdateStatement());
+			}
+		}
+		
+		private String createInsertStatement() {
+			StringBuilder buf = new StringBuilder();
+			StringBuilder valueBuf = new StringBuilder();
+			buf.append("INSERT INTO ").append(request.getTableName()).append(" (");
+			
+			List<String> colList = request.getTableColumnList();
+			for (String name: colList) {
+				if (valueBuf.length() > 0) {
+					buf.append(", ");
+					valueBuf.append(", ");
+				}
+				buf.append(name);
+				valueBuf.append("?");
+			}
+			buf.append(") VALUES(").append(valueBuf).append(")");
+			return buf.toString();
+		}
+		
+		private String createUpdateStatement() {
+			StringBuilder buf = new StringBuilder();
+			buf.append("UPDATE ").append(request.getTableName()).append(" SET ");
+			
+			List<String> colList = request.getTableColumnList();
+			boolean bFirst = true;
+			for (String name: colList) {
+				if (isKeyColumn(name)) {
+					continue;
+				}
+				if (bFirst) {
+					bFirst = false;
+				} else {
+					buf.append(", ");
+				}
+				buf.append(name).append(" = ?");
+			}
+			buf.append(" WHERE ");
+			bFirst = true;
+			for (String name : request.getKeyColumns()) {
+				if (bFirst) {
+					bFirst = false;
+				} else {
+					buf.append(", ");
+				}
+				buf.append(name).append(" = ?");
+			}
+			return buf.toString();
+		}
+		
+		public void addObject(SObject obj) throws SQLException {
+			if (this.updateStmt == null) {
+				addToInsert(obj);
+			} else {
+				addToUpdate(obj);
+			}
+			this.objList.add(obj);
+		}
+		
+		private void addToInsert(SObject obj) throws SQLException {
+			int idx = 1;
+			List<String> colList = request.getTableColumnList();
+			//INSERT clause
+			for (String colName : colList) {
+				addParameter(this.insertStmt, idx++, obj, colName);
+			}
+			this.insertStmt.addBatch();
+		}
+		
+		private void addToUpdate(SObject obj) throws SQLException {
+			int idx = 1;
+			List<String> colList = request.getTableColumnList();
+			//UPDATE clause
+			for (String colName : colList) {
+				if (isKeyColumn(colName)) {
+					continue;
+				}
+				addParameter(this.updateStmt, idx++, obj, colName);
+			}
+			for (String colName : request.getKeyColumns()) {
+				addParameter(this.updateStmt, idx++, obj, colName);
+			}
+			this.updateStmt.addBatch();
+		}
+		
+		public int[] execute() throws SQLException {
+			int[] ret = null;
+			try {
+				if (this.updateStmt == null) {
+					ret = this.insertStmt.executeBatch();
+				} else {
+					ret = this.updateStmt.executeBatch();
+					
+					int insertCnt = 0;
+					for (int i=0; i<ret.length; i++) {
+						int n = ret[i];
+						SObject obj = this.objList.get(i);
+						if (n == 0) {
+							addToInsert(obj);
+							insertCnt++;
+						}
+					}
+					if (insertCnt > 0) {
+						int[] inserts = null;
+						BatchUpdateException ex = null;
+						try {
+							inserts = this.insertStmt.executeBatch();
+						} catch (BatchUpdateException e) {
+							ex = e;
+							inserts = e.getUpdateCounts();
+						}
+						int insertIndex = 0;
+						for (int i=0; i<ret.length; i++) {
+							if (ret[i] == 0) {
+								ret[i] = inserts[insertIndex++];
+							}
+						}
+						if (ex != null) {
+							throw new BatchUpdateException(ret, ex);
+						}
+					}
+				}
+				fireEvent(EventType.UPDATED);
+			} finally {
+				this.objList.clear();
+			}
+			return ret;
+		}
+		
+		public void close() {
+			try {
+				this.insertStmt.close();
+			} catch (SQLException e) {
+				//ignore
+			}
+			if (this.updateStmt != null) {
+				try {
+					this.updateStmt.close();
+				} catch (SQLException e) {
+					//ignore
+				}
+			}
 		}
 		
 	}
@@ -335,20 +512,21 @@ public class SObjectSynchronizer {
 				buf.append(name);
 				valueBuf.append("?");
 			}
-			buf.append(") VALUES(").append(valueBuf)
-				.append(") ON DUPLICATE KEY UPDATE ");
-			
-			valueBuf.setLength(0);
-			for (String name: colList) {
-				if (isKeyColumn(name)) {
-					continue;
+			buf.append(") VALUES(").append(valueBuf).append(")");
+			if (hasKeyColumn()) {
+				buf.append(" ON DUPLICATE KEY UPDATE ");
+				valueBuf.setLength(0);
+				for (String name: colList) {
+					if (isKeyColumn(name)) {
+						continue;
+					}
+					if (valueBuf.length() > 0) {
+						valueBuf.append(", ");
+					}
+					valueBuf.append(name).append(" = ?");
 				}
-				if (valueBuf.length() > 0) {
-					valueBuf.append(", ");
-				}
-				valueBuf.append(name).append(" = ?");
+				buf.append(valueBuf);
 			}
-			buf.append(valueBuf);
 			return buf.toString();
 		}
 		
@@ -357,25 +535,15 @@ public class SObjectSynchronizer {
 			List<String> colList = request.getTableColumnList();
 			//INSERT clause
 			for (String colName : colList) {
-				Object value = request.getFunction(colName).evaluate(obj);
-				int type = getColumnType(colName);
-				if (value == null) {
-					this.stmt.setNull(idx++, type);
-				} else {
-					this.stmt.setObject(idx++, value, type);
-				}
+				addParameter(this.stmt, idx++, obj, colName);
 			}
-			//UPDATE clause
-			for (String colName : colList) {
-				if (isKeyColumn(colName)) {
-					continue;
-				}
-				Object value = request.getFunction(colName).evaluate(obj);
-				int type = getColumnType(colName);
-				if (value == null) {
-					this.stmt.setNull(idx++, type);
-				} else {
-					this.stmt.setObject(idx++, value, type);
+			if (hasKeyColumn()) {
+				//UPDATE clause
+				for (String colName : colList) {
+					if (isKeyColumn(colName)) {
+						continue;
+					}
+					addParameter(this.stmt, idx++, obj, colName);
 				}
 			}
 			this.stmt.addBatch();
@@ -385,6 +553,14 @@ public class SObjectSynchronizer {
 			int[] ret = this.stmt.executeBatch();
 			fireEvent(EventType.UPDATED);
 			return ret;
+		}
+		
+		public void close() {
+			try {
+				this.stmt.close();
+			} catch (SQLException e) {
+				//ignore
+			}
 		}
 	}
 	
