@@ -1,11 +1,13 @@
 package jp.co.flect.salesforce.bulk;
 
 import java.sql.Connection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.ArrayList;
 import javax.swing.event.EventListenerList;
 import jp.co.flect.salesforce.event.SObjectSynchronizerListener;
+import jp.co.flect.salesforce.SObject;
 
 /**
  * SalesforceのオブジェクトをRDBに同期するためのリクエストクラス
@@ -39,9 +41,10 @@ public class SObjectSyncRequest {
 	private Object[] params;
 	private int batchSize;
 	private SObjectSyncPolicy policy = SObjectSyncPolicy.CommitPerQuery;
-	private LinkedHashMap<String, String> fieldMapping = new LinkedHashMap<String, String>();
-	private LinkedHashMap<String, Object> defaultMapping = new LinkedHashMap<String, Object>();
 	private EventListenerList listeners = new EventListenerList();
+	
+	private List<String> fieldList = new ArrayList<String>();
+	private LinkedHashMap<String, Function> tableMapping = new LinkedHashMap<String, Function>();
 	
 	/**
 	 * コンストラクタ
@@ -102,37 +105,38 @@ public class SObjectSyncRequest {
 	
 	/**
 	 * SalesforceのオブジェクトフィールドとRDBのテーブルカラムのマッピングを登録します。<br>
-	 * 参照項目を指定する場合は「MyObject__r.Field1__c」のようにドット区切りで指定します。
+	 * 参照項目を指定する場合は「MyObject__r.Field1__c」のようにドット区切りで指定します。<br>
+	 * FunctionMappingのみで使用する項目はtableColumnにnullを指定します。
+	 * @param objectField Salesforceオブジェクトのフィールド名
+	 * @param tableColumn RDBテーブルの列名。nullでも良い
 	 */
-	public void addFieldMapping(String objectFieldName, String tableFieldName) {
-		this.fieldMapping.put(objectFieldName, tableFieldName);
+	public void addFieldMapping(String objectField, String tableColumn) {
+		if (objectField == null) {
+			throw new IllegalArgumentException();
+		}
+		this.fieldList.add(objectField);
+		if (tableColumn != null) {
+			this.tableMapping.put(tableColumn, new SimpleMapping(objectField));
+		}
+	}
+	
+	public void addFunctionMapping(String tableColumn, Function func) {
+		this.tableMapping.put(tableColumn, func);
 	}
 	
 	/**
 	 * マッピングされたSalesforceのオブジェクトフィールドのリストを返します。
 	 */
-	public List<String> getObjectFieldList() { return new ArrayList<String>(this.fieldMapping.keySet());}
+	public List<String> getObjectFieldList() { 
+		return Collections.unmodifiableList(this.fieldList);
+	}
 	
 	/**
 	 * マッピングされたRDBのテーブルカラムのリストを返します。
 	 */
-	public List<String> getTableColumnList() { return new ArrayList<String>(this.fieldMapping.values());}
-	
-	/**
-	 * マッピングされたSalesforceのオブジェクトフィールドに対応するRDBのテーブルカラムを返します。
-	 */
-	public String getMappedTableColumn(String objectFieldName) { return this.fieldMapping.get(objectFieldName);}
-	
-	/**
-	 * Salesforceに対応する列が無い場合のデフォルト値を登録済ます。<br>
-	 * @param tableFieldName テーブルのカラム名
-	 * @param value デフォルト値
-	 */
-	public void addDefaultMapping(String tableFieldName, Object value) {
-		this.defaultMapping.put(tableFieldName, value);
+	public List<String> getTableColumnList() {
+		return new ArrayList<String>(this.tableMapping.keySet());
 	}
-	
-	public LinkedHashMap<String, Object> getDefaultMapping() { return this.defaultMapping;}
 	
 	/** 同期ポリシーを返します */
 	public SObjectSyncPolicy getPolicy() { return this.policy;}
@@ -155,4 +159,35 @@ public class SObjectSyncRequest {
 	public SObjectSynchronizerListener[] getSObjectSynchronizerListeners() {
 		return this.listeners.getListeners(SObjectSynchronizerListener.class);
 	}
+	
+	/**
+	 * FunctionMappingで使用するインターフェース
+	 */
+	public interface Function {
+		
+		/**
+		 * 引数のSObjectから値を取得し計算した結果を返します。
+		 */
+		public Object evaluate(SObject obj);
+		
+	}
+	
+	private static class SimpleMapping implements Function {
+		
+		private String fieldName;
+		
+		public SimpleMapping(String fieldName) {
+			this.fieldName = fieldName;
+		}
+		
+		@Override
+		public Object evaluate(SObject obj) {
+			return obj.getDeep(fieldName);
+		}
+		
+	}
+	
+	//Package local
+	Function getFunction(String tableColumn) { return this.tableMapping.get(tableColumn);}
+	
 }
