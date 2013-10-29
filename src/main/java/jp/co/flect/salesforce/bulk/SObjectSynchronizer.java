@@ -164,20 +164,16 @@ public class SObjectSynchronizer {
 		SObjectDef objectDef = getSObjectDef(request.getObjectName());
 		for (String name: request.getObjectFieldList()) {
 			checkSchema(objectDef, name);
-			String colName = request.getMappedTableColumn(name);
-			if (colName != null && !colMap.hasColumn(colName)) {
-				throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + colName);
-			}
 		}
-		for (String colName : request.getDefaultMapping().keySet()) {
+		for (String colName : request.getTableColumnList()) {
 			if (!colMap.hasColumn(colName)) {
 				throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + colName);
 			}
 		}
 		if (request.getKeyColumns() != null) {
-			for (String key : request.getKeyColumns()) {
-				if (!colMap.hasColumn(key)) {
-					throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + key);
+			for (String colName : request.getKeyColumns()) {
+				if (!colMap.hasColumn(colName)) {
+					throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + colName);
 				}
 			}
 		}
@@ -332,17 +328,6 @@ public class SObjectSynchronizer {
 			
 			List<String> colList = request.getTableColumnList();
 			for (String name: colList) {
-				if (name == null) {
-					continue;
-				}
-				if (valueBuf.length() > 0) {
-					buf.append(", ");
-					valueBuf.append(", ");
-				}
-				buf.append(name);
-				valueBuf.append("?");
-			}
-			for (String name : request.getDefaultMapping().keySet()) {
 				if (valueBuf.length() > 0) {
 					buf.append(", ");
 					valueBuf.append(", ");
@@ -355,7 +340,7 @@ public class SObjectSynchronizer {
 			
 			valueBuf.setLength(0);
 			for (String name: colList) {
-				if (name == null || isKeyColumn(name)) {
+				if (isKeyColumn(name)) {
 					continue;
 				}
 				if (valueBuf.length() > 0) {
@@ -369,14 +354,10 @@ public class SObjectSynchronizer {
 		
 		public void addObject(SObject obj) throws SQLException {
 			int idx = 1;
-			List<String> fieldList = request.getObjectFieldList();
+			List<String> colList = request.getTableColumnList();
 			//INSERT clause
-			for (String name : fieldList) {
-				String colName = request.getMappedTableColumn(name);
-				if (colName == null) {
-					continue;
-				}
-				Object value = obj.getDeep(name);
+			for (String colName : colList) {
+				Object value = request.getFunction(colName).evaluate(obj);
 				int type = getColumnType(colName);
 				if (value == null) {
 					this.stmt.setNull(idx++, type);
@@ -384,19 +365,12 @@ public class SObjectSynchronizer {
 					this.stmt.setObject(idx++, value, type);
 				}
 			}
-			for (Map.Entry<String, Object> entry : request.getDefaultMapping().entrySet()) {
-				String colName = entry.getKey();
-				Object value = entry.getValue();
-				int type = getColumnType(colName);
-				this.stmt.setObject(idx++, value, type);
-			}
 			//UPDATE clause
-			for (String name : fieldList) {
-				String colName = request.getMappedTableColumn(name);
-				if (colName == null || isKeyColumn(colName)) {
+			for (String colName : colList) {
+				if (isKeyColumn(colName)) {
 					continue;
 				}
-				Object value = obj.getDeep(name);
+				Object value = request.getFunction(colName).evaluate(obj);
 				int type = getColumnType(colName);
 				if (value == null) {
 					this.stmt.setNull(idx++, type);
