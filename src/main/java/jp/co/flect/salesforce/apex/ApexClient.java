@@ -1,6 +1,7 @@
 package jp.co.flect.salesforce.apex;
 
 import jp.co.flect.salesforce.UserInfo;
+import jp.co.flect.salesforce.LoginScope;
 import jp.co.flect.soap.SoapClient;
 import jp.co.flect.soap.SoapException;
 import jp.co.flect.util.ExtendedMap;
@@ -30,7 +31,7 @@ public class ApexClient extends SoapClient {
 	
 	private static final String LOGIN_REQUEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
 		"<soap:Envelope xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\">" +
-			"<soap:Header></soap:Header>" +
+			"<soap:Header>${header}</soap:Header>" +
 			"<soap:Body>" +
 				"<tns:login xmlns:tns=\"urn:partner.soap.sforce.com\">" +
 					"<tns:username>${username}</tns:username>" + 
@@ -52,6 +53,7 @@ public class ApexClient extends SoapClient {
 	private LogType debugLevel = LogType.None;
 	private boolean allowFieldTruncation = false;
 	private String sessionId;
+	private LoginScope loginScope;
 	
 	/**
 	 * Constructor
@@ -92,6 +94,11 @@ public class ApexClient extends SoapClient {
 	public boolean isUseSandbox() { return this.useSandbox;}
 	public void setUseSandbox(boolean v) { this.useSandbox = v;}
 	
+	/** ログイン時のスコープを返します。 */
+	public LoginScope getLoginScope() { return this.loginScope;}
+	/** ログイン時のスコープを設定します。 */
+	public void setLoginScope(LoginScope v) { this.loginScope = v;}
+	
 	public LogType getDebugLevel() { return this.debugLevel;}
 	public void setDebugLeve(LogType v) { this.debugLevel = v;}
 	
@@ -118,9 +125,17 @@ public class ApexClient extends SoapClient {
 	 * @return UserInfo
 	 */
 	public UserInfo login(String username, String password, String secret) throws IOException, SoapException {
+		String header = "";
+		if (this.loginScope != null) {
+			header += "<tns:LoginScopeHeader xmlns:tns=\"urn:partner.soap.sforce.com\">" +
+						"<tns:organizationId>" + this.loginScope.getOrganizationId() + "</tns:organizationId>" +
+						"<tns:portalId>" + this.loginScope.getPortalId() + "</tns:portalId>" +
+					"</tns:LoginScopeHeader>";
+		}
 		String request = LOGIN_REQUEST
 			.replace("${username}", username)
-			.replace("${password}", password + secret);
+			.replace("${password}", password + secret)
+			.replace("${header}", header);
 		
 		String orgEndpoint = getEndpoint();
 		try {

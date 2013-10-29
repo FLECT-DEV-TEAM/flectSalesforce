@@ -102,6 +102,7 @@ public class SalesforceClient extends SoapClient {
 	private boolean defaultAllOrNone = false;
 	
 	private String metadataUrl;
+	private LoginScope loginScope;
 	
 	/**
 	 * コンストラクタ
@@ -182,6 +183,11 @@ public class SalesforceClient extends SoapClient {
 	/** セッションの継続時間を秒単位で設定します。 */
 	public void setSessionLifetime(int n) { this.sessionLifetime = n;}
 	
+	/** ログイン時のスコープを返します。 */
+	public LoginScope getLoginScope() { return this.loginScope;}
+	/** ログイン時のスコープを設定します。 */
+	public void setLoginScope(LoginScope v) { this.loginScope = v;}
+	
 	/** Metadataを返します */
 	public Metadata getMetadata() { return this.meta;}
 	/** Metadataを設定します */
@@ -204,6 +210,10 @@ public class SalesforceClient extends SoapClient {
 		ExtendedMap input = new ExtendedMap(true);
 		input.putDeep("login.username", username);
 		input.putDeep("login.password", password + secret);
+		if (this.loginScope != null) {
+			input.putDeep("LoginScopeHeader.organizationId", this.loginScope.getOrganizationId());
+			input.putDeep("LoginScopeHeader.portalId", this.loginScope.getPortalId());
+		}
 		try {
 			SoapResponse res = invoke("login", null, input);
 			ExtendedMap output = res.getAsMap();
