@@ -180,6 +180,9 @@ public class SObjectSyncRequest {
 			this.fieldName = fieldName;
 		}
 		
+		public String getFieldName() { return this.fieldName;}
+		public void setFieldName(String v) { this.fieldName = v;}
+		
 		@Override
 		public Object evaluate(SObject obj) {
 			return obj.getDeep(fieldName);
@@ -190,4 +193,24 @@ public class SObjectSyncRequest {
 	//Package local
 	Function getFunction(String tableColumn) { return this.tableMapping.get(tableColumn);}
 	
+	//For adujsting case sensitive
+	void normalizeObjectFieldList(List<String> list) {
+		//assert this.fieldList.size() == list.size();
+		for (int i=0; i<list.size(); i++) {
+			String orgValue = this.fieldList.get(i);
+			String newValue = list.get(i);
+			if (!orgValue.equals(newValue)) {
+				for (Function f : this.tableMapping.values()) {
+					if (f instanceof SimpleMapping) {
+						SimpleMapping sm = (SimpleMapping)f;
+						if (sm.getFieldName().equals(orgValue)) {
+							sm.setFieldName(newValue);
+							break;
+						}
+					}
+				}
+				this.fieldList.set(i, newValue);
+			}
+		}
+	}
 }

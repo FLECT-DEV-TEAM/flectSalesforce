@@ -6,6 +6,7 @@ import java.sql.SQLException;
 import java.sql.BatchUpdateException;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
+import java.sql.Types;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Map;
@@ -164,9 +165,11 @@ public class SObjectSynchronizer {
 		}
 		//Check Salesforce object schema
 		SObjectDef objectDef = getSObjectDef(request.getObjectName());
+		List<String> normalizeList = new ArrayList<String>();
 		for (String name: request.getObjectFieldList()) {
-			checkSchema(objectDef, name);
+			normalizeList.add(checkSchema(objectDef, name));
 		}
+		request.normalizeObjectFieldList(normalizeList);
 		for (String colName : request.getTableColumnList()) {
 			if (!colMap.hasColumn(colName)) {
 				throw new IllegalArgumentException("Unknown table column: " + request.getTableName() + "." + colName);
@@ -191,13 +194,14 @@ public class SObjectSynchronizer {
 		return objectDef;
 	}
 	
-	private void checkSchema(SObjectDef objectDef, String name) throws IOException, SoapException {
+	private String checkSchema(SObjectDef objectDef, String name) throws IOException, SoapException {
 		int idx = name.indexOf(".");
 		if (idx == -1) {
 			FieldDef field = objectDef.getField(name);
 			if (field == null) {
 				throw new IllegalArgumentException("Unknown field: " + objectDef.getName() + "." + name);
 			}
+			return field.getName();
 		} else {
 			String childName = name.substring(0, idx);
 			String childField = name.substring(idx + 1);
@@ -206,7 +210,7 @@ public class SObjectSynchronizer {
 				throw new IllegalArgumentException("Unknown field: " + objectDef.getName() + "." + childName);
 			}
 			SObjectDef childDef = getSObjectDef(field.getReferenceToName());
-			checkSchema(childDef, childField);
+			return field.getName() + "." + checkSchema(childDef, childField);
 		}
 	}
 	
@@ -311,6 +315,17 @@ public class SObjectSynchronizer {
 			if (value == null) {
 				stmt.setNull(idx, type);
 			} else {
+				if (value instanceof Date) {
+					Date d = (Date)value;
+					switch (type) {
+						case Types.DATE:
+							value = new java.sql.Date(d.getTime());
+							break;
+						case Types.TIMESTAMP:
+							value = new java.sql.Timestamp(d.getTime());
+							break;
+					}
+				}
 				stmt.setObject(idx, value, type);
 			}
 		}
@@ -578,6 +593,9 @@ public class SObjectSynchronizer {
 		public int getType(String name) {
 			return this.map.get(name.toLowerCase());
 		}
+		
+		@Override
+		public String toString() { return this.map.toString();}
 	}
 	
 	private SObjectSynchronizerListener[] getSObjectSynchronizerListeners() {
