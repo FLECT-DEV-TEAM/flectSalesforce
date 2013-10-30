@@ -213,4 +213,6 @@ public class SObjectSyncRequest {
 			}
 		}
 	}
+	
+	void setTableName(String v) { this.tableName = v;}
 }

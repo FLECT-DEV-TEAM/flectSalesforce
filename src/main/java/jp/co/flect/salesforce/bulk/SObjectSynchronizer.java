@@ -74,7 +74,7 @@ public class SObjectSynchronizer {
 						fireEvent(new SObjectSynchronizerEvent(this, EventType.BATCH_ERROR, e));
 						throw e;
 					} else {
-						retry(table, result, e);
+						retry(table, result.getRecords(), e);
 					}
 				}
 				if (request.getPolicy() != SObjectSyncRequest.SObjectSyncPolicy.CommitOnce) {
@@ -112,17 +112,48 @@ public class SObjectSynchronizer {
 		}
 	}
 	
-	private void retry(MergeTable table, QueryResult<SObject> result, BatchUpdateException e) throws SQLException {
+	private void retry(MergeTable table, List<SObject> list, BatchUpdateException e) throws SQLException {
 		int[] updates = e.getUpdateCounts();
-		//assert updates.length == result.getCurrentSize();
-		//Retry error records
-		for (int i=0; i<updates.length; i++) {
-			int n = updates[i];
-			SObject obj = result.getRecords().get(i);
-			if (n < 0) {
-				try {
+		if (updates.length == list.size()) {
+			//MySQL 
+			//BatchUpdateException#getUpdatesCounts and the number of addBatch are always same.
+			//Retry error records
+			for (int i=0; i<updates.length; i++) {
+				int n = updates[i];
+				SObject obj = list.get(i);
+				if (n < 0) {
+					try {
+						table.execute(obj);
+						table.commit();
+						this.successCount++;
+					} catch (SQLException e2) {
+						this.errorCount++;
+						table.rollback();
+						fireEvent(new SObjectSynchronizerEvent(this, obj, e2));
+					}
+				}
+			}
+			//Retry normal record
+			for (int i=0; i<updates.length; i++) {
+				int n = updates[i];
+				SObject obj = list.get(i);
+				if (n > 0) {
 					table.addObject(obj);
-					table.execute();
+				}
+			}
+			try {
+				int[] ret = table.execute();
+				this.successCount += ret.length;
+			} catch (BatchUpdateException e2) {
+				throw notBatchUpdateException(e2);
+			}
+		} else {
+			//PostgreSQL
+			//BatchUpdateException#getUpdatesCounts stop at error record.
+			for (SObject obj : list) {
+				try {
+					table.execute(obj);
+					table.commit();
 					this.successCount++;
 				} catch (SQLException e2) {
 					this.errorCount++;
@@ -130,20 +161,6 @@ public class SObjectSynchronizer {
 					fireEvent(new SObjectSynchronizerEvent(this, obj, e2));
 				}
 			}
-		}
-		//Retry normal record
-		for (int i=0; i<updates.length; i++) {
-			int n = updates[i];
-			SObject obj = result.getRecords().get(i);
-			if (n > 0) {
-				table.addObject(obj);
-			}
-		}
-		try {
-			int[] ret = table.execute();
-			this.successCount += ret.length;
-		} catch (BatchUpdateException e2) {
-			throw new SQLException(e2);
 		}
 	}
 	
@@ -162,6 +179,9 @@ public class SObjectSynchronizer {
 			}
 		} finally {
 			rs.close();
+		}
+		if (colMap.size() == 0) {
+			normalizeTableName(meta, colMap);
 		}
 		//Check Salesforce object schema
 		SObjectDef objectDef = getSObjectDef(request.getObjectName());
@@ -184,6 +204,41 @@ public class SObjectSynchronizer {
 		}
 		this.colMap = colMap;
 		fireEvent(EventType.PREPARED);
+	}
+	
+	//Adjust case sensitive
+	private void normalizeTableName(DatabaseMetaData meta, ColumnMap colMap) throws SQLException{
+		String tableName = request.getTableName();
+		String newName = null;
+		ResultSet rs = meta.getTables(null, null, "%", null);
+		try {
+			while (rs.next()) {
+				String s = rs.getString(3);
+				if (tableName.equalsIgnoreCase(s)) {
+					newName = s;
+					break;
+				}
+			}
+		} finally {
+			rs.close();
+		}
+		if (newName == null || newName.equals(tableName)) {
+			throw new IllegalArgumentException("Unknown table: " + tableName);
+		}
+		request.setTableName(newName);
+		rs = meta.getColumns(null, null, newName, "%");
+		try {
+			while (rs.next()) {
+				String columnName = rs.getString(4);
+				int type = rs.getInt(5);
+				colMap.add(columnName, type);
+			}
+		} finally {
+			rs.close();
+		}
+		if (colMap.size() == 0) {
+			throw new IllegalArgumentException("Unknown table: " + tableName);
+		}
 	}
 	
 	private SObjectDef getSObjectDef(String objectName) throws IOException, SoapException {
@@ -295,6 +350,14 @@ public class SObjectSynchronizer {
 		return keys != null && keys.length > 0;
 	}
 	
+	private static SQLException notBatchUpdateException(BatchUpdateException e) {
+		SQLException target = e;
+		while (target instanceof BatchUpdateException) {
+			target = target.getNextException();
+		}
+		return target == null ? new SQLException(e) : target;
+	}
+	
 	private abstract class MergeTable {
 		
 		private ColumnMap colMap;
@@ -333,6 +396,16 @@ public class SObjectSynchronizer {
 		public abstract void addObject(SObject obj) throws SQLException;
 		public abstract int[] execute() throws SQLException;
 		public abstract void close();
+		
+		public int execute(SObject obj) throws SQLException {
+			try {
+				addObject(obj);
+				int[] ret = execute();
+				return ret[0];
+			} catch (BatchUpdateException e) {
+				throw notBatchUpdateException(e);
+			}
+		}
 		
 		public void commit() throws SQLException { 
 			this.con.commit();
@@ -472,11 +545,17 @@ public class SObjectSynchronizer {
 						int insertIndex = 0;
 						for (int i=0; i<ret.length; i++) {
 							if (ret[i] == 0) {
-								ret[i] = inserts[insertIndex++];
+								if (insertIndex < inserts.length) {
+									ret[i] = inserts[insertIndex++];
+								} else {
+									ret[i] = -1;
+								}
 							}
 						}
 						if (ex != null) {
-							throw new BatchUpdateException(ret, ex);
+							BatchUpdateException newEx = new BatchUpdateException(ret, ex);
+							newEx.setNextException(ex);
+							throw newEx;
 						}
 					}
 				}
@@ -593,6 +672,8 @@ public class SObjectSynchronizer {
 		public int getType(String name) {
 			return this.map.get(name.toLowerCase());
 		}
+		
+		public int size() { return this.map.size();}
 		
 		@Override
 		public String toString() { return this.map.toString();}
