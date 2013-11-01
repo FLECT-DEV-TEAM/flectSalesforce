@@ -265,7 +265,7 @@ public class SObjectSynchronizer {
 				throw new IllegalArgumentException("Unknown field: " + objectDef.getName() + "." + childName);
 			}
 			SObjectDef childDef = getSObjectDef(field.getReferenceToName());
-			return field.getName() + "." + checkSchema(childDef, childField);
+			return field.getRelationshipName() + "." + checkSchema(childDef, childField);
 		}
 	}
 	
