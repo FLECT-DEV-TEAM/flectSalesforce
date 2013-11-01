@@ -544,7 +544,7 @@ public class SObject extends SimpleObject {
 			Map.Entry<String, Object> entry = it.next();
 			String name = entry.getKey();
 			Object value = entry.getValue();
-			if (value instanceof String && ((String)value).length() == 0) {
+			if (value == null) {
 				it.remove();
 				continue;
 			} else if (value instanceof QueryResult) {

@@ -5,6 +5,7 @@ import java.io.OutputStream;
 import java.io.StringWriter;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.Iterator;
 
 import jp.co.flect.salesforce.SObject;
 import jp.co.flect.salesforce.SObjectDef;
@@ -154,14 +155,35 @@ public class ModifyRequestWriter {
 			writeValue(writer, "type", obj.getObjectName());
 			indent = false;
 		}
+		SObjectDef objectDef = obj.getObjectDef();
 		Map<String, Object> map = new TreeMap<String, Object>(obj.getMap());
-		String id = (String)map.remove("Id");
+		String id = null;
+		//fieldsToNull
+		Iterator<Map.Entry<String, Object>> it = map.entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<String, Object> entry = it.next();
+			String name = entry.getKey();
+			Object value = entry.getValue();
+			if (name.equals("Id")) {
+				id = (String)value;
+				it.remove();
+				continue;
+			}
+			if (value instanceof String && value.toString().length() == 0) {
+				FieldDef field = objectDef.getField(name);
+				if (field != null && isTargetField(field)) {
+					writer.indent(indent);
+					writeValue(writer, "fieldsToNull", name);
+					indent = false;
+				}
+				it.remove();
+			}
+		}
 		if (id != null) {
 			writer.indent(indent);
 			writeValue(writer, "Id", id);
 			indent = false;
 		}
-		SObjectDef objectDef = obj.getObjectDef();
 		for (Map.Entry<String, Object> entry : map.entrySet()) {
 			String name = entry.getKey();
 			Object value = entry.getValue();
@@ -231,6 +253,9 @@ public class ModifyRequestWriter {
 		}
 		name = OBJECT_PREFIX + name;
 		writer.openElement(name);
+		if (value.length() == 0) {
+			writer.attr("xsi:nil", "true");
+		}
 		writer.endTag();
 		writer.content(value);
 		writer.endElement(name);

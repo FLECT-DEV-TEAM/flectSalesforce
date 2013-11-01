@@ -13,6 +13,7 @@ public abstract class DmlStatement {
 		STRING,
 		NUMBER,
 		BOOLEAN,
+		NULL,
 		UNKNOWN
 	};
 	
@@ -42,7 +43,12 @@ public abstract class DmlStatement {
 		} else if (n == Tokenizer.T_NUMBER) {
 			type = ValueType.NUMBER;
 		} else if (n == Tokenizer.T_LITERAL) {
-			type = ValueType.UNKNOWN;
+			if (str.equals("null")) {
+				type = ValueType.NULL;
+				str = "";
+			} else {
+				type = ValueType.UNKNOWN;
+			}
 		} else {
 			throw new ParseException(t.getString(), t.getPrevIndex());
 		} 
@@ -50,6 +56,9 @@ public abstract class DmlStatement {
 	}
 	
 	protected boolean checkType(FieldDef fd, Value value) {
+		if (value.getType() == ValueType.NULL) {
+			return true;
+		}
 		SimpleType type = fd.getSoapType();
 		if (type.isStringType()) {
 			return value.getType() == ValueType.STRING;
