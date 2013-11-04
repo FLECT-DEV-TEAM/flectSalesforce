@@ -45,6 +45,7 @@ public class ParameterQuery {
 		BOOLEAN,
 		LITERAL,
 		NUMBER,
+		NULL,
 		UNKNOWN
 	};
 	
@@ -176,6 +177,10 @@ public class ParameterQuery {
 		if (p == null) {
 			return false;
 		}
+		if (value == null || value.length() == 0) {
+			p.setNull();
+			return true;
+		}
 		
 		String schemaType = null;
 		switch (p.type) {
@@ -233,6 +238,13 @@ public class ParameterQuery {
 		public void setType(ParameterType type) { this.type = type;}
 		
 		public String getValue() { return this.value;}
-		public void setValue(String s) { this.value = s;}
+		public void setValue(String s) { 
+			this.value = s;
+		}
+		
+		public void setNull() {
+			this.type = ParameterType.NULL;
+			this.value = "null";
+		}
 	}
 }

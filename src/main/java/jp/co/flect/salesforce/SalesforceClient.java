@@ -890,12 +890,11 @@ public class SalesforceClient extends SoapClient {
 				Object value = params.get(p.getName());
 				if (value == null) {
 					if (params.containsKey(p.getName())) {
-						value = "";
+						p.setNull();
 					} else {
 						throw new SalesforceException("Parameter not specified: " + p.getName());
 					}
-				}
-				if (value instanceof String) {
+				} else if (value instanceof String) {
 					p.setValue(value.toString());
 				} else if (value instanceof Number) {
 					p.setType(ParameterQuery.ParameterType.NUMBER);
