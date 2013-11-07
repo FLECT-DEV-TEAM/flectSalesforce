@@ -10,8 +10,8 @@ public class Fixture {
 	private String keyField;
 	private String keyValue;
 	private String desc;
-	
 	private String id;
+	
 	private boolean deletable = true;
 	
 	private Map<String, String> values = new HashMap<String, String>();
@@ -32,9 +32,6 @@ public class Fixture {
 	public String getDescription() { return this.desc;}
 	public void setDescription(String v) { this.desc = v;}
 	
-	public String getId() { return this.id;}
-	public void setId(String v) { this.id = v;}
-	
 	public boolean canDelete() { return this.deletable;}
 	public void setCanDelete(boolean b) { this.deletable = b;}
 	
@@ -46,6 +43,9 @@ public class Fixture {
 	}
 	
 	public Map<String, String> getFieldValues() { return this.values;}
+	public String getFieldValue(String name) {
+		return this.values.get(name);
+	}
 	
 	public void addProperty(String name, Object value) {
 		this.props.put(name, value);
@@ -54,5 +54,8 @@ public class Fixture {
 	public Object getProperty(String name) {
 		return this.props.get(name);
 	}
+	
+	String getId() { return this.id;}
+	void setId(String v) { this.id = v;}
 	
 }

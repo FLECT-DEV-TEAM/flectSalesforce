@@ -7,7 +7,11 @@ import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Date;
+import java.util.Calendar;
+import java.util.TimeZone;
 import org.yaml.snakeyaml.Yaml;
+import jp.co.flect.xmlschema.SimpleType;
 
 public class FixtureLoader {
 	
@@ -61,11 +65,26 @@ public class FixtureLoader {
 				}
 			} else {
 				if (value != null) {
-					value = value.toString();
+					if (value instanceof Date) {
+						Date d = (Date)value;
+						value = hasTime(d) ? SimpleType.DATETIME.format(d) : SimpleType.DATE.format(d);
+					} else {
+						value = value.toString();
+					}
 				}
 				fx.addFieldValue(fkey, (String)value);
 			}
 		}
 		return fx;
+	}
+	
+	private static boolean hasTime(Date d) {
+		Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+System.out.println("TimeZone: " + cal.getTimeZone());
+		cal.setTime(d);
+		return cal.get(Calendar.HOUR_OF_DAY) != 0 ||
+		       cal.get(Calendar.MINUTE) != 0 ||
+		       cal.get(Calendar.SECOND) != 0 ||
+		       cal.get(Calendar.MILLISECOND) != 0;
 	}
 }

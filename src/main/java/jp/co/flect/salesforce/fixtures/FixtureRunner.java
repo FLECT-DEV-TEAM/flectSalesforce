@@ -3,6 +3,8 @@ package jp.co.flect.salesforce.fixtures;
 import java.io.IOException;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.List;
+import java.util.ArrayList;
 import jp.co.flect.salesforce.SalesforceClient;
 import jp.co.flect.salesforce.SObject;
 import jp.co.flect.salesforce.SObjectDef;
@@ -15,6 +17,7 @@ public class FixtureRunner {
 	
 	private SalesforceClient client;
 	private boolean cacheId;
+	private Map<String, List<Fixture>> idMap = null;
 	
 	public FixtureRunner(SalesforceClient client) {
 		this.client = client;
@@ -41,7 +44,7 @@ public class FixtureRunner {
 			result = client.update(obj);
 		}
 		if (result.isSuccess() && this.cacheId) {
-			fx.setId(result.getId());
+			cacheId(fx, result.getId());
 		}
 		return result.isSuccess();
 	}
@@ -59,7 +62,7 @@ public class FixtureRunner {
 		}
 		SaveResult result = client.delete(id);
 		if (this.cacheId) {
-			fx.setId(null);
+			removeId(fx, id);
 		}
 		return result.isSuccess();
 	}
@@ -106,4 +109,31 @@ public class FixtureRunner {
 		return field.getSoapType().isStringType();
 	}
 	
+	private void cacheId(Fixture fx, String id) {
+		fx.setId(id);
+		if (this.idMap == null) {
+			this.idMap = new HashMap<String, List<Fixture>>();
+		}
+		List<Fixture> list = this.idMap.get(id);
+		if (list == null) {
+			list = new ArrayList<Fixture>();
+			this.idMap.put(id, list);
+		}
+		if (!list.contains(fx)) {
+			list.add(fx);
+		}
+	}
+	
+	private void removeId(Fixture fx, String id) {
+		fx.setId(null);
+		if (this.idMap == null) {
+			return;
+		}
+		List<Fixture> list = this.idMap.remove(id);
+		if (list != null) {
+			for (Fixture f : list) {
+				f.setId(null);
+			}
+		}
+	}
 }
