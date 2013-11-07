@@ -47,6 +47,9 @@ public class FixtureRunner {
 	}
 	
 	public boolean delete(Fixture fx) throws IOException, SoapException {
+		if (!fx.canDelete()) {
+			return false;
+		}
 		String id = this.cacheId ? fx.getId() : null;
 		if (id == null) {
 			id = queryId(fx);
