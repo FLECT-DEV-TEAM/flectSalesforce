@@ -80,7 +80,6 @@ public class FixtureLoader {
 	
 	private static boolean hasTime(Date d) {
 		Calendar cal = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
-System.out.println("TimeZone: " + cal.getTimeZone());
 		cal.setTime(d);
 		return cal.get(Calendar.HOUR_OF_DAY) != 0 ||
 		       cal.get(Calendar.MINUTE) != 0 ||

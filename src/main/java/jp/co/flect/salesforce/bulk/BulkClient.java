@@ -137,7 +137,7 @@ public class BulkClient {
 		HttpPost method = new HttpPost(url);
 		InputStreamEntity entity = new InputStreamEntity(is, length);
 		if (job.getContentType() == null) {
-			System.out.println("Invalid job: " + job);
+			throw new IllegalArgumentException("Invalid job: " + job);
 		}
 		entity.setContentType(job.getContentType().getHeaderValue());
 		method.setEntity(entity);
