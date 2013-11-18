@@ -15,9 +15,8 @@ import jp.co.flect.xmlschema.SimpleType;
 
 public class FixtureLoader {
 	
-	public List<Fixture> load(File f) throws IOException {
+	public List<Fixture> load(InputStream input) throws IOException {
 		List<Fixture> list = new ArrayList<Fixture>();
-		InputStream input = new FileInputStream(f);
 		try {
 			Yaml yaml = new Yaml();
 			Map map = (Map)yaml.load(input);
@@ -32,6 +31,10 @@ public class FixtureLoader {
 			input.close();
 		}
 		return list;
+	}
+	
+	public List<Fixture> load(File f) throws IOException {
+		return load(new FileInputStream(f));
 	}
 	
 	private Fixture parse(String name, Map map) throws IOException {
