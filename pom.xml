@@ -94,6 +94,21 @@
 				</executions>
 			</plugin>
 			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>2.9.1</version>
+				<configuration>
+					<doclet>jp.co.flect.doclets.github.Standard</doclet>
+					<docletArtifact>
+						<groupId>jp.co.flect</groupId>
+						<artifactId>githubDoclet</artifactId>
+						<version>1.0</version>
+					</docletArtifact>
+					<additionalparam>-github https://github.com/shunjikonishi/flectSalesforce/tree/master/src/main/java</additionalparam>
+					<useStandardDocletOptions>true</useStandardDocletOptions>
+				</configuration>
+			</plugin>
+			<plugin>
 				<groupId>com.github.github</groupId>
 				<artifactId>site-maven-plugin</artifactId>
 				<version>0.7</version>
