@@ -12,7 +12,7 @@ http://oss.flect.co.jp/apidocs/flectSoap/index.html
 
 Usage
 -----
-Japanese only
+Japanese only  
 http://flect-salesforce-sample.herokuapp.com/
 
 Dependencies
