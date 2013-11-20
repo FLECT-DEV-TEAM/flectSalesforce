@@ -8,7 +8,7 @@ Simple Salesforce client for Java.
 
 JavaDoc
 -------
-http://oss.flect.co.jp/apidocs/flectSoap/index.html
+http://oss.flect.co.jp/apidocs/flectSalesforce/index.html
 
 Usage
 -----
