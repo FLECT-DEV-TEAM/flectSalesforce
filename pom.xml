@@ -104,7 +104,7 @@
 						<artifactId>githubDoclet</artifactId>
 						<version>1.0</version>
 					</docletArtifact>
-					<additionalparam>-github https://github.com/shunjikonishi/flectSalesforce/tree/master/src/main/java</additionalparam>
+					<additionalparam>-github https://github.com/shunjikonishi/flectSalesforce/tree/master/src/main/java -github.member</additionalparam>
 					<useStandardDocletOptions>true</useStandardDocletOptions>
 				</configuration>
 			</plugin>
