@@ -314,11 +314,7 @@ public class SObjectSynchronizer {
 		}
 		if (obj instanceof TypedValue) {
 			TypedValue tv = (TypedValue)obj;
-			if (tv.getType().isSimpleType()) {
-				return convertParam(tv.toString());
-			} else {
-				return tv.toString();
-			}
+			return tv.toString();
 		}
 		throw new IllegalArgumentException("Unsupported value: " + obj.getClass().getName() + ": " + obj);
 	}
