@@ -16,6 +16,7 @@ import jp.co.flect.soap.WSDL;
 import jp.co.flect.soap.OperationDef;
 import jp.co.flect.soap.TypedObject;
 import java.util.Map;
+import java.util.List;
 import jp.co.flect.template.TemplateException;
 
 /**
@@ -163,6 +164,11 @@ public class ApexClient extends SoapClient {
 	public <T extends TypedObject> T simpleInvoke(String opName, Map<String, Object> simpleParams, Class<T> clazz) throws IOException, SoapException {
 		SoapResponse res = doSimpleInvoke(opName, simpleParams);
 		return res.getAsObject(clazz);
+	}
+	
+	public <T extends TypedObject> List<T> simpleInvokeAsList(String opName, Map<String, Object> simpleParams, Class<T> clazz) throws IOException, SoapException {
+		SoapResponse res = doSimpleInvoke(opName, simpleParams);
+		return res.getAsList(clazz);
 	}
 	
 	private SoapResponse doSimpleInvoke(String opName, Map<String, Object> simpleParams) throws IOException, SoapException {
