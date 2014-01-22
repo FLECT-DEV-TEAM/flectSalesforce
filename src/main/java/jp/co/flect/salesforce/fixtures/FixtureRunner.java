@@ -34,7 +34,28 @@ public class FixtureRunner {
 		SaveResult result = null;
 		SObject obj = client.newObject(fx.getObjectName());
 		for (Map.Entry<String, String> entry : fx.getFieldValues().entrySet()) {
-			obj.set(entry.getKey(), entry.getValue());
+			String key = entry.getKey();
+			String value = entry.getValue();
+			int idx = key.indexOf(".");
+			if (idx != -1) {
+				String cName = key.substring(0, idx);
+				String cField = key.substring(idx + 1);
+				
+				SObjectDef objectDef = client.getMetadata().getObjectDef(fx.getObjectName());
+				if (objectDef == null || !objectDef.isComplete()) {
+					objectDef = client.describeSObject(fx.getObjectName());
+				}
+				if (objectDef != null) {
+					FieldDef field = objectDef.getSingleRelation(cName);
+					if (field != null) {
+						SObject child = client.newObject(field.getReferenceToName());
+						child.set(cField, value);
+						obj.set(cName, child);
+					}
+				}
+			} else {
+				obj.set(key, value);
+			}
 		}
 		if (id == null) {
 			obj.set(fx.getKeyField(), fx.getKeyValue());
