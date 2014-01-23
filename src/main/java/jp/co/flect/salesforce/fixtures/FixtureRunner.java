@@ -9,6 +9,7 @@ import jp.co.flect.salesforce.SalesforceClient;
 import jp.co.flect.salesforce.SObject;
 import jp.co.flect.salesforce.SObjectDef;
 import jp.co.flect.salesforce.FieldDef;
+import jp.co.flect.salesforce.exceptions.ObjectNotFoundException;
 import jp.co.flect.salesforce.query.QueryResult;
 import jp.co.flect.salesforce.update.SaveResult;
 import jp.co.flect.soap.SoapException;
@@ -27,6 +28,16 @@ public class FixtureRunner {
 	public void setCacheId(boolean b) { this.cacheId = b;}
 	
 	public boolean update(Fixture fx) throws IOException, SoapException {
+		return updateObject(fx).isSuccess();
+	}
+	
+	public SaveResult updateObject(Fixture fx) throws IOException, SoapException {
+		if (!fx.isNormalized()) {
+			try {
+				fx = fx.normalize(client);
+			} catch (ObjectNotFoundException e) {
+			}
+		}
 		String id = this.cacheId ? fx.getId() : null;
 		if (id == null) {
 			id = queryId(fx);
@@ -41,10 +52,7 @@ public class FixtureRunner {
 				String cName = key.substring(0, idx);
 				String cField = key.substring(idx + 1);
 				
-				SObjectDef objectDef = client.getMetadata().getObjectDef(fx.getObjectName());
-				if (objectDef == null || !objectDef.isComplete()) {
-					objectDef = client.describeSObject(fx.getObjectName());
-				}
+				SObjectDef objectDef = client.getValidObjectDef(fx.getObjectName());
 				if (objectDef != null) {
 					FieldDef field = objectDef.getSingleRelation(cName);
 					if (field != null) {
@@ -67,25 +75,30 @@ public class FixtureRunner {
 		if (result.isSuccess() && this.cacheId) {
 			cacheId(fx, result.getId());
 		}
-		return result.isSuccess();
+		return result;
 	}
 	
 	public boolean delete(Fixture fx) throws IOException, SoapException {
+		SaveResult result = deleteObject(fx);
+		return result != null && result.isSuccess();
+	}
+	
+	public SaveResult deleteObject(Fixture fx) throws IOException, SoapException {
 		if (!fx.canDelete()) {
-			return false;
+			return null;
 		}
 		String id = this.cacheId ? fx.getId() : null;
 		if (id == null) {
 			id = queryId(fx);
 		}
 		if (id == null) {
-			return false;
+			return null;
 		}
 		SaveResult result = client.delete(id);
 		if (this.cacheId) {
 			removeId(fx, id);
 		}
-		return result.isSuccess();
+		return result;
 	}
 	
 	private String queryId(Fixture fx) throws IOException, SoapException {
@@ -119,9 +132,9 @@ public class FixtureRunner {
 			}
 			return true;
 		}
-		SObjectDef objectDef = client.getMetadata().getObjectDef(objectName);
-		if (objectDef == null || !objectDef.isComplete()) {
-			objectDef = client.describeSObject(objectName);
+		SObjectDef objectDef = client.getValidObjectDef(objectName);
+		if (objectDef == null) {
+			return true;
 		}
 		FieldDef field = objectDef.getField(fieldName);
 		if (field == null) {

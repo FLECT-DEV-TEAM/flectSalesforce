@@ -1102,6 +1102,21 @@ public class SalesforceClient extends SoapClient {
 		}
 	}
 	
+	public SObjectDef getValidObjectDef(String objectName) throws IOException, SoapException {
+		SObjectDef objectDef = getMetadata().getObjectDef(objectName);
+		if (objectDef == null || !objectDef.isComplete()) {
+			try {
+				objectDef = describeSObject(objectName);
+			} catch (SoapFaultException e) {
+				if ("sf:INVALID_TYPE".equals(e.getFaultCode())) {
+					return null;
+				}
+				throw e;
+			}
+		}
+		return objectDef;
+	}
+	
 	private String getApiVersion() {
 		String endpoint = getWSDL().getEndpoint();
 		int idx = endpoint.lastIndexOf('/');
