@@ -19,9 +19,15 @@ Dependencies
 ------------
 If you want to build this library, you must build and install following maven projects.
 
-- [flectCommon](https://github.com/shunjikonishi/flectCommon)
-- [flectSoap](https://github.com/shunjikonishi/flectSoap)
+- [flectCommon](https://github.com/FLECT-DEV-TEAM/flectCommon)
+- [flectSoap](https://github.com/FLECT-DEV-TEAM/flectSoap)
 
 License
 -------
 MIT
+
+We have an commercial use version of this application officially supported. 
+
+Please contact us for details.
+
+info@flect.co.jp
